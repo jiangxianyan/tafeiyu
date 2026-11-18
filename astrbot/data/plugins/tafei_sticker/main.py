@@ -14,6 +14,17 @@ from astrbot.api.message_components import Image
 PLUGIN_NAME = "tafei_sticker"
 EXTS = (".jpg", ".jpeg", ".png", ".gif", ".webp")
 MAX_STICKER_BYTES = 8 * 1024 * 1024
+SERIOUS_MARKERS = (
+    "报错",
+    "代码",
+    "接口",
+    "配置",
+    "文档",
+    "步骤",
+    "怎么解决",
+    "技术问题",
+    "数据错误",
+)
 
 
 def _project_root() -> str:
@@ -132,18 +143,27 @@ class TafeiSticker(star.Star):
             self.meta = self._load_meta()
 
     def _match(self, text: str) -> list:
-        """按 meta.json 里的关键词匹配，返回可能的文件路径列表。"""
+        """按关键词和离线语义标签排序，只返回高相关候选。"""
         if not text:
             return []
+        if any(marker in text for marker in SERIOUS_MARKERS):
+            return []
         self._maybe_reload_meta()
-        out = []
+        scored = []
         for name, info in (self.meta or {}).items():
             p = os.path.join(STICKER_DIR, name)
             if not os.path.exists(p):
                 continue
+            score = 0
             if any(k and k in text for k in info.get("kw", [])):
-                out.append(p)
-        return out
+                score += 3
+            for field, weight in (("emotion", 2), ("intent", 2), ("tone", 1)):
+                if any(k and k in text for k in info.get(field, [])):
+                    score += weight
+            if score >= 3:
+                scored.append((score, float(info.get("q", 99)), p))
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        return [item[2] for item in scored[:4]]
 
     def _files(self) -> list:
         if not os.path.isdir(STICKER_DIR):
@@ -292,7 +312,8 @@ class TafeiSticker(star.Star):
             seg.text for seg in chain if isinstance(getattr(seg, "text", None), str)
         )
         # 只有塔菲这句话命中了某个表情的含义才会补图，没命中就不发
-        matched = self._match(text)
+        user_text = str(getattr(event, "message_str", "") or "")
+        matched = self._match(user_text + "\n" + text)
         if not matched:
             return
         key = event.unified_msg_origin

@@ -21,6 +21,8 @@ def main() -> int:
         ROOT / ".bot_runtime" / "tafei_watchdog.py",
         ROOT / "astrbot" / "data" / "plugins" / "tafei_persona" / "main.py",
         ROOT / "astrbot" / "data" / "plugins" / "tafei_sticker" / "main.py",
+        ROOT / "astrbot" / "data" / "plugins" / "tafei_memory" / "main.py",
+        ROOT / "astrbot" / "data" / "plugins" / "tafei_web" / "main.py",
     ):
         try:
             check_python(path)
@@ -34,6 +36,9 @@ def main() -> int:
             for keyword in info.get("kw", []):
                 if len(keyword.strip()) < 2:
                     errors.append(f"{filename}: overly broad keyword {keyword!r}")
+            for field in ("emotion", "intent", "tone"):
+                if not info.get(field):
+                    errors.append(f"{filename}: missing semantic field {field}")
     except Exception as exc:
         errors.append(f"{meta_path}: {exc}")
 
@@ -44,6 +49,12 @@ def main() -> int:
         errors.append("tafei_sticker: hard-coded probability is still present")
     if 'NAPCAT_TOKEN = "tafei-local"' in sticker_source:
         errors.append("tafei_sticker: hard-coded NapCat token is still present")
+
+    watchdog_source = (
+        ROOT / ".bot_runtime" / "tafei_watchdog.py"
+    ).read_text(encoding="utf-8")
+    if "smtplib" in watchdog_source or "send_drop_mail" in watchdog_source:
+        errors.append("watchdog: offline email code is still present")
 
     if errors:
         print("\n".join(errors), file=sys.stderr)

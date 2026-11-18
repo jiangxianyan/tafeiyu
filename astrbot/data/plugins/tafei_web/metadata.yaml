@@ -1,0 +1,8 @@
+name: tafei_web
+display_name: 塔菲按需联网
+desc: 仅在用户明确要求搜索或提供链接时联网，限制结果数和注入长度
+help: 使用“搜一下”“查一下”“最新新闻”等明确说法触发；也可直接发送链接
+version: 1.0.0
+author: local
+repo: ""
+astrbot_version: ">=4.11.0"

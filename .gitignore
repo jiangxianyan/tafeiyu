@@ -22,6 +22,10 @@
 !/astrbot/data/plugins/tafei_persona/**
 !/astrbot/data/plugins/tafei_sticker/
 !/astrbot/data/plugins/tafei_sticker/**
+!/astrbot/data/plugins/tafei_memory/
+!/astrbot/data/plugins/tafei_memory/**
+!/astrbot/data/plugins/tafei_web/
+!/astrbot/data/plugins/tafei_web/**
 !/astrbot/data/plugin_data/
 /astrbot/data/plugin_data/*
 !/astrbot/data/plugin_data/tafei_persona/

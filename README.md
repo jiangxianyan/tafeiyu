@@ -6,6 +6,8 @@ Personal QQ AI companion built on AstrBot and OneBot.
 
 - `astrbot/data/plugins/tafei_persona`: persona and speaking-rule injection
 - `astrbot/data/plugins/tafei_sticker`: context-aware sticker replies
+- `astrbot/data/plugins/tafei_memory`: local, group-scoped conversation recall
+- `astrbot/data/plugins/tafei_web`: opt-in search and public-link reading
 - `.bot_runtime`: service manager and watchdog
 - `tafei_role.md`: human-readable consolidated persona reference
 - `docs/OPERATIONS.md`: safe operating and validation workflow

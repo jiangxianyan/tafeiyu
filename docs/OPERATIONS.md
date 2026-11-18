@@ -42,6 +42,17 @@ Regenerate the readable snapshot with:
 python scripts/export_persona.py
 ```
 
+## Added features
+
+- `tafei_web`: searches only on explicit requests such as “搜一下” or when the
+  user supplies a public link. Set `tavily_api_key` in `.secrets/tafei.env.json`
+  to use Tavily; otherwise the plugin uses Bing RSS snippets.
+- `tafei_memory`: stores group-scoped text in a local SQLite trigram index for
+  90 days. Admin commands are `/tf_remember`, `/tf_forget`, and
+  `/tf_memory_status`.
+- `tafei_sticker`: selects from the curated local library using offline emotion,
+  intent, and tone tags.
+
 ## Validation
 
 Run:
