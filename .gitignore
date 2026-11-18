@@ -1,0 +1,59 @@
+# Live secrets and deployment state
+/.secrets/
+/astrbot/data/cmd_config.json
+/astrbot/data/config/*
+/astrbot/data/plugin_data/tafei_sticker/config.json
+/astrbot/data/plugin_data/tafei_sticker/remote.json
+/.bot_runtime/mail.json
+/deploy_state.json
+/config/tafei.settings.json
+/塔菲交接.md
+/微信塔菲方案.md
+
+# Third-party runtimes and downloaded installers
+/astrbot/*
+!/astrbot/data/
+/astrbot/data/*
+!/astrbot/data/personas/
+!/astrbot/data/personas/tafei.md
+!/astrbot/data/plugins/
+/astrbot/data/plugins/*
+!/astrbot/data/plugins/tafei_persona/
+!/astrbot/data/plugins/tafei_persona/**
+!/astrbot/data/plugins/tafei_sticker/
+!/astrbot/data/plugins/tafei_sticker/**
+!/astrbot/data/plugin_data/
+/astrbot/data/plugin_data/*
+!/astrbot/data/plugin_data/tafei_persona/
+!/astrbot/data/plugin_data/tafei_persona/**
+
+/napcat/
+/wcf/
+/downloads/
+/backup_*/
+
+# Generated stickers and remote favorites
+/stickers/tafei/fav_*
+/stickers/tafei/remote.json
+
+# One-off migration and debugging scripts
+/*.ps1
+/*.js
+/sheet15.json
+/shot.py
+
+# Logs, caches, screenshots, and temporary artifacts
+*.log
+*.pyc
+__pycache__/
+.pause_watchdog
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Local editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

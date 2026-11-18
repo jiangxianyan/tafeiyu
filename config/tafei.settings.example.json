@@ -1,0 +1,14 @@
+{
+  "enabled_groups": [
+    "YOUR_GROUP_ID"
+  ],
+  "trigger_keywords": [
+    "塔菲",
+    "taffy",
+    "小菲",
+    "雏草姬"
+  ],
+  "after_reply_probability": 0.8,
+  "agent_max_steps": 12,
+  "content_safety_in_response": true
+}
