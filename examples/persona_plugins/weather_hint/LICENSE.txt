@@ -1,0 +1,2 @@
+This example is provided for use with tafeiyu under the same terms as the
+tafeiyu project.

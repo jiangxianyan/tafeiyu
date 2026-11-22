@@ -8,13 +8,15 @@ import io
 BASE = r"C:\tafei"
 BOT = os.path.join(BASE, ".bot_runtime", "bot_manager.py")
 LOG = os.path.join(BASE, "watchdog.log")
+HEARTBEAT = os.path.join(BASE, ".bot_runtime", "watchdog.heartbeat")
 PAUSE_FLAG = os.path.join(BASE, ".pause_watchdog")
 MANUAL_LOGIN_FLAG = os.path.join(BASE, ".manual_login_required")
 PY = sys.executable
 LOCK_PORT = 47654
 CHECK_SECONDS = 45
 FAILS_BEFORE_RESTART = 3
-RESTART_COOLDOWN = 300
+RESTART_COOLDOWN = 600
+BRIDGE_NOTICE_COOLDOWN = 1800
 NO_WINDOW = 0x08000000
 
 
@@ -36,6 +38,14 @@ def single_instance():
         return s
     except OSError:
         return None
+
+
+def heartbeat():
+    try:
+        with io.open(HEARTBEAT, "w", encoding="ascii") as f:
+            f.write(str(os.getpid()))
+    except OSError:
+        pass
 
 
 def ws_state(port):
@@ -62,15 +72,20 @@ def online():
     return l and e and a
 
 
-def start_bot():
-    log("尝试启动机器人 ...")
+def restart_astrbot_only():
+    log("仅重启 AstrBot，NapCat/QQ 保持运行 ...")
     try:
-        subprocess.Popen([PY, BOT, "start"], cwd=BASE,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         creationflags=NO_WINDOW)
-        return True
+        result = subprocess.run(
+            [PY, BOT, "restart-astrbot"],
+            cwd=BASE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=NO_WINDOW,
+            timeout=150,
+        )
+        return result.returncode == 0
     except Exception as e:
-        log("启动失败: %s" % e)
+        log("AstrBot 重启失败: %s" % e)
         return False
 
 
@@ -91,11 +106,14 @@ def main():
     if lock is None:
         return
     log("watchdog 启动")
+    heartbeat()
     time.sleep(60)
     fails = FAILS_BEFORE_RESTART - 1
     last_restart = 0
+    last_bridge_notice = 0
     paused_logged = False
     while True:
+        heartbeat()
         if os.path.exists(MANUAL_LOGIN_FLAG):
             if online():
                 try:
@@ -122,28 +140,61 @@ def main():
                 continue
         if online():
             fails = 0
+            last_bridge_notice = 0
         else:
+            astrbot_listening, _ = ws_state(6185)
+            _, bridge_established = ws_state(6199)
             fails += 1
-            log("状态异常 第%d次" % fails)
-            if fails >= FAILS_BEFORE_RESTART and time.time() - last_restart > RESTART_COOLDOWN:
-                last_restart = time.time()
-                start_bot()
-                time.sleep(60)
-                if online():
-                    log("自动重连成功")
-                    fails = 0
-                else:
-                    log("自动重连失败，停止重复重试，等待人工登录")
-                    try:
-                        io.open(MANUAL_LOGIN_FLAG, "a").close()
-                    except OSError:
-                        pass
+            log(
+                "状态异常 第%d次 astrbot=%s bridge=%s"
+                % (
+                    fails,
+                    "listening" if astrbot_listening else "down",
+                    "established" if bridge_established else "down",
+                )
+            )
+            if not astrbot_listening:
+                if (
+                    fails >= FAILS_BEFORE_RESTART
+                    and time.time() - last_restart > RESTART_COOLDOWN
+                ):
+                    last_restart = time.time()
+                    restart_astrbot_only()
+                    time.sleep(60)
+                    astrbot_listening, _ = ws_state(6185)
+                    if online():
+                        log("AstrBot 重启后 QQ 桥已自动重连")
+                        fails = 0
+                        continue
+                    if not astrbot_listening:
+                        log("AstrBot 重启失败；停止自动重试，等待人工处理")
+                        try:
+                            io.open(MANUAL_LOGIN_FLAG, "a").close()
+                        except OSError:
+                            pass
+                        notify(
+                            "AstrBot 没有恢复",
+                            "守护程序已停止自动重启。请检查 AstrBot 日志后，"
+                            "使用唯一入口「启动塔菲鱼」手动恢复。",
+                        )
+                        time.sleep(600)
+                        fails = 0
+            else:
+                # AstrBot 正常但 QQ 桥没连上：不要自动重启 QQ，否则容易反复扫码/同号互踢。
+                if time.time() - last_bridge_notice > BRIDGE_NOTICE_COOLDOWN:
+                    log("AstrBot 在线，但 QQ 桥未连接；只提醒，不自动拉起 NapCat")
                     notify(
-                        "塔菲掉线了",
-                        "自动重连失败。请处理后双击「启动塔菲」重新登录。",
+                        "QQ 桥未连接",
+                        "AstrBot 本身在线。守护程序不会自动重启 NapCat/QQ。"
+                        "请检查 QQ 是否仍登录；需要恢复时只使用唯一入口启动一次。",
                     )
-                    time.sleep(600)
-                    fails = 0
+                    last_bridge_notice = time.time()
+                try:
+                    io.open(MANUAL_LOGIN_FLAG, "a").close()
+                except OSError:
+                    pass
+                time.sleep(60)
+                fails = 0
         time.sleep(CHECK_SECONDS)
 
 

@@ -1,5 +1,7 @@
 import io
+import json
 import os
+import sys
 import tempfile
 
 from astrbot.api import logger, star
@@ -9,6 +11,7 @@ from astrbot.core.star.filter.command import GreedyStr
 PLUGIN_NAME = "tafei_persona"
 MAX_INJECT_CHARS = 6000   # 每次回复最多注入的语录字符数，防止吃满上下文
 MAX_SHOW_ITEMS = 40
+MAX_PLUGIN_PROMPT_CHARS = 3000
 
 
 def _dedupe(items: list[str]) -> list[str]:
@@ -30,6 +33,65 @@ def _data_dir() -> str:
     return os.path.join(os.path.dirname(os.path.dirname(here)), "data")
 
 
+def _project_root() -> str:
+    return os.path.dirname(os.path.dirname(_data_dir()))
+
+
+def _plugin_prompt(persona_id: str, user_text: str) -> str:
+    root = _project_root()
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    try:
+        from persona_extensions import build_plugin_prompt
+
+        return build_plugin_prompt(
+            persona_id,
+            user_text,
+            char_limit=MAX_PLUGIN_PROMPT_CHARS,
+        )
+    except Exception as error:
+        logger.warning(f"tafei_persona: 人格插件读取失败: {error}")
+        return ""
+
+
+def _visual_identity_prompt(persona_id: str) -> str:
+    root = _project_root()
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    try:
+        from persona_visuals_core import visual_identity_prompt
+
+        return visual_identity_prompt(persona_id)
+    except Exception as error:
+        logger.warning(f"tafei_persona: 人格形象卡读取失败: {error}")
+        return ""
+
+
+def _active_persona() -> dict:
+    fallback = {
+        "id": "tafei",
+        "display_name": "塔菲",
+        "persona_file": "astrbot/data/personas/tafei.md",
+        "style_file": "astrbot/data/plugin_data/tafei_persona/style.txt",
+    }
+    path = os.path.join(_project_root(), "config", "personas.json")
+    try:
+        with io.open(path, encoding="utf-8-sig") as handle:
+            catalog = json.load(handle)
+        active = str(catalog.get("active") or "tafei")
+        persona = next(
+            (
+                item
+                for item in catalog.get("personas", [])
+                if str(item.get("id")) == active
+            ),
+            None,
+        )
+        return persona if persona else fallback
+    except (OSError, ValueError):
+        return fallback
+
+
 class TafeiPersona(star.Star):
     """塔菲人设教学：在 QQ 里用命令教她说话方式，实时注入 system prompt。"""
 
@@ -37,24 +99,40 @@ class TafeiPersona(star.Star):
         super().__init__(context)
         self.dir = os.path.join(_data_dir(), "plugin_data", PLUGIN_NAME)
         os.makedirs(self.dir, exist_ok=True)
-        self.file = os.path.join(self.dir, "style.txt")
-        self.glossary_file = os.path.join(self.dir, "glossary.txt")
+        self.styles_dir = os.path.join(self.dir, "styles")
+        os.makedirs(self.styles_dir, exist_ok=True)
+
+    def _style_path(self) -> str:
+        persona = _active_persona()
+        configured = str(persona.get("style_file") or "").strip()
+        if configured:
+            return os.path.join(_project_root(), configured.replace("/", os.sep))
+        return os.path.join(self.styles_dir, f"{persona.get('id', 'tafei')}.txt")
+
+    def _glossary_path(self) -> str:
+        persona_id = str(_active_persona().get("id") or "tafei")
+        if persona_id == "tafei":
+            return os.path.join(self.dir, "glossary.txt")
+        return os.path.join(self.styles_dir, f"{persona_id}.glossary.txt")
 
     def _load(self) -> list[str]:
-        if not os.path.exists(self.file):
+        path = self._style_path()
+        if not os.path.exists(path):
             return []
-        with io.open(self.file, encoding="utf-8") as f:
+        with io.open(path, encoding="utf-8") as f:
             return _dedupe([ln.strip() for ln in f if ln.strip()])
 
     def _save(self, items: list[str]) -> None:
         items = _dedupe(items)
+        path = self._style_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         fd, temp_path = tempfile.mkstemp(
-            prefix="style-", suffix=".tmp", dir=self.dir
+            prefix="style-", suffix=".tmp", dir=os.path.dirname(path)
         )
         try:
             with io.open(fd, "w", encoding="utf-8") as f:
                 f.write("\n".join(items) + ("\n" if items else ""))
-            os.replace(temp_path, self.file)
+            os.replace(temp_path, path)
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
@@ -144,8 +222,9 @@ class TafeiPersona(star.Star):
     @filter.command("tf_help")
     async def tf_help(self, event: AstrMessageEvent) -> None:
         """命令列表"""
+        display_name = str(_active_persona().get("display_name") or "当前人格")
         yield event.plain_result(
-            "教塔菲（仅管理员）：\n"
+            f"教{display_name}（仅管理员）：\n"
             "/tf_add 内容 —— 加一条（可多行）\n"
             "/tf_bulk 整段 —— 每行一条，批量导入语录\n"
             "/tf_show —— 看前 40 条\n"
@@ -156,9 +235,10 @@ class TafeiPersona(star.Star):
         )
 
     def _load_glossary(self) -> list[str]:
-        if not os.path.exists(self.glossary_file):
+        path = self._glossary_path()
+        if not os.path.exists(path):
             return []
-        with io.open(self.glossary_file, encoding="utf-8") as f:
+        with io.open(path, encoding="utf-8") as f:
             return [ln.strip() for ln in f if ln.strip()]
 
     @filter.on_llm_request()
@@ -171,15 +251,23 @@ class TafeiPersona(star.Star):
             return
 
         persona_text = ""
+        persona = _active_persona()
+        persona_id = str(persona.get("id") or "tafei")
+        display_name = str(persona.get("display_name") or "当前人格")
         try:
-            persona_path = os.path.join(_data_dir(), "personas", "tafei.md")
+            configured = str(persona.get("persona_file") or "").strip()
+            persona_path = (
+                os.path.join(_project_root(), configured.replace("/", os.sep))
+                if configured
+                else os.path.join(_data_dir(), "personas", "tafei.md")
+            )
             if os.path.exists(persona_path):
                 with io.open(persona_path, encoding="utf-8") as f:
                     persona_text = f.read().strip()
         except Exception as e:
             logger.error(f"tafei_persona: 读取人设失败: {e}")
 
-        marker = "【永雏塔菲·人设与说话方式】"
+        marker = f"【{display_name}·人设与说话方式】"
         current = (getattr(req, "prompt", "") or "") + (req.system_prompt or "")
         if marker in current:
             return
@@ -200,6 +288,14 @@ class TafeiPersona(star.Star):
             parts.append("\n【说话规则】\n" + "\n".join(used))
         if terms:
             parts.append("\n【词义表】\n" + "\n".join(f"- {t}" for t in terms))
+        visual_prompt = _visual_identity_prompt(persona_id)
+        if visual_prompt:
+            parts.append("\n" + visual_prompt)
+        plugin_prompt = _plugin_prompt(
+            persona_id, str(getattr(event, "message_str", "") or "")
+        )
+        if plugin_prompt:
+            parts.append(plugin_prompt)
         block = "\n".join(parts)
 
         # 群聊插件会把很长的指令塞进 prompt，规则落在最后才压得住。
@@ -211,5 +307,7 @@ class TafeiPersona(star.Star):
             where = "system"
         logger.info(
             f"tafei_persona: 注入到 {where} persona={bool(persona_text)} "
-            f"rules={len(items)} block_len={len(block)}"
+            f"rules={len(items)} visual={bool(visual_prompt)} "
+            f"plugins={bool(plugin_prompt)} "
+            f"block_len={len(block)}"
         )

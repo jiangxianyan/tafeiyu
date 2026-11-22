@@ -1,0 +1,7 @@
+name: tafei_memewiki
+display_name: 梗百科
+desc: 本地 6792 条梗与黑话词库，命中时只向当前人格注入一条相关词条
+version: 1.0.0
+author: tafeiyu
+repo: ""
+help: /tf_meme 词；管理员可用 /tf_meme_status 与 /tf_meme_update

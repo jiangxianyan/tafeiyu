@@ -1,8 +1,8 @@
 name: tafei_memory
 display_name: 塔菲群聊记忆
-desc: 本地分组记忆与三元组检索，每次只注入少量相关历史
+desc: 本地分组记忆、冷热分层与线索召回，每次只注入少量相关历史
 help: /tf_remember 内容、/tf_forget 关键词、/tf_memory_status
-version: 1.0.0
+version: 1.1.0
 author: local
 repo: ""
 astrbot_version: ">=4.11.0"

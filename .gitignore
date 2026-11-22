@@ -5,6 +5,8 @@
 /astrbot/data/plugin_data/tafei_sticker/config.json
 /astrbot/data/plugin_data/tafei_sticker/remote.json
 /.bot_runtime/mail.json
+/.bot_runtime/napcat_start_attempts.json
+/.setup_complete
 /deploy_state.json
 /config/tafei.settings.json
 /塔菲交接.md
@@ -16,41 +18,75 @@
 /astrbot/data/*
 !/astrbot/data/personas/
 !/astrbot/data/personas/tafei.md
+!/astrbot/data/personas/dafeiyu.md
 !/astrbot/data/plugins/
 /astrbot/data/plugins/*
+!/astrbot/data/plugins/astrbot_plugin_group_chat_plus/
+!/astrbot/data/plugins/astrbot_plugin_group_chat_plus/**
+/astrbot/data/plugins/astrbot_plugin_group_chat_plus/__pycache__/
 !/astrbot/data/plugins/tafei_persona/
 !/astrbot/data/plugins/tafei_persona/**
 !/astrbot/data/plugins/tafei_sticker/
 !/astrbot/data/plugins/tafei_sticker/**
 !/astrbot/data/plugins/tafei_memory/
 !/astrbot/data/plugins/tafei_memory/**
+!/astrbot/data/plugins/tafei_memewiki/
+!/astrbot/data/plugins/tafei_memewiki/**
 !/astrbot/data/plugins/tafei_web/
 !/astrbot/data/plugins/tafei_web/**
+!/astrbot/data/plugins/tafei_voice/
+!/astrbot/data/plugins/tafei_voice/**
+/astrbot/data/plugins/tafei_voice/cache/
+!/astrbot/data/plugins/tafei_vision/
+!/astrbot/data/plugins/tafei_vision/**
+!/astrbot/data/persona_visuals/
+!/astrbot/data/persona_visuals/*.json
+/astrbot/data/persona_visuals/assets/
+/astrbot/data/persona_visuals/**/*.tmp
 !/astrbot/data/plugin_data/
 /astrbot/data/plugin_data/*
 !/astrbot/data/plugin_data/tafei_persona/
 !/astrbot/data/plugin_data/tafei_persona/**
+!/astrbot/data/plugin_data/tafei_vision/
+!/astrbot/data/plugin_data/tafei_vision/config.json
+/astrbot/data/plugin_data/tafei_vision/image_cache.json
 
 /napcat/
 /wcf/
+/voice/
 /downloads/
+/local/
 /backup_*/
+/.visual_tmp/
+/tafeiq*-mockup-rendered.html
+/tafeiq*-preview.png
 
 # Generated stickers and remote favorites
 /stickers/tafei/fav_*
 /stickers/tafei/remote.json
+/stickers/tafei/meta.json
 
 # One-off migration and debugging scripts
 /*.ps1
 /*.js
+/legacy_launchers/*.ps1
+/legacy_launchers/*.bat
 /sheet15.json
 /shot.py
+/find_dafeiyu.py
+/scan_all_db.py
+/大肥鱼_人格.md
+/大肥鱼_人格_含示例对话.md
+/小鲸鱼_人格.md
 
 # Logs, caches, screenshots, and temporary artifacts
 *.log
 *.pyc
 __pycache__/
 .pause_watchdog
+/.bot_runtime/watchdog.heartbeat
+*.bak-*
+*.gbk.bak
 *.png
 *.jpg
 *.jpeg

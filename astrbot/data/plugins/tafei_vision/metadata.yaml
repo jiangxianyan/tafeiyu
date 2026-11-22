@@ -1,0 +1,8 @@
+name: tafei_vision
+display_name: 塔菲鱼私聊视觉
+desc: 私聊收到图片时先调用独立视觉模型生成描述，再交给当前人格自然回应
+help: 管理员可用 /tf_vision 查看状态、/tf_vision_clear 清空图片描述缓存
+version: 1.0.0
+author: local
+repo: ""
+astrbot_version: ">=4.11.0"

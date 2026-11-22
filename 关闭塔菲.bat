@@ -1,11 +1,11 @@
 @echo off
-chcp 936 >nul
-title Ëþ·Æ ¹Ø±Õ
+chcp 65001 >nul
+title å¡”è² å…³é—­
 cd /d "%~dp0"
-set ASTRBOT_ROOT=C:\tafei\astrbot
+set "ASTRBOT_ROOT=%~dp0astrbot"
 type nul > "%~dp0.pause_watchdog"
 py -3 "%~dp0.bot_runtime\bot_manager.py" stop
 echo.
-echo ÒÑ¹Ø±Õ¡£ÊØ»¤½ø³ÌÒÑÔÝÍ££¬ÏÂ´Îµã¡¸Æô¶¯Ëþ·Æ¡¹»á×Ô¶¯»Ö¸´¡£
-echo °´ÈÎÒâ¼üÍË³ö...
+echo å·²å…³é—­ã€‚å®ˆæŠ¤è¿›ç¨‹å·²æš‚åœï¼Œä¸‹æ¬¡ç‚¹ã€Œå¯åŠ¨å¡”è²ã€ä¼šè‡ªåŠ¨æ¢å¤ã€‚
+echo æŒ‰ä»»æ„é”®é€€å‡º...
 pause >nul

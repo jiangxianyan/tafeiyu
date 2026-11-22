@@ -1,0 +1,45 @@
+{
+  "active": "tafei",
+  "personas": [
+    {
+      "id": "tafei",
+      "display_name": "塔菲",
+      "aliases": [
+        "taffy",
+        "小菲"
+      ],
+      "persona_file": "astrbot/data/personas/tafei.md",
+      "style_file": "astrbot/data/plugin_data/tafei_persona/style.txt",
+      "accent": "#df6d98",
+      "voice_binding": {
+        "voice_id": "tafei_gpt_sovits",
+        "display_name": "小菲 GPT-SoVITS V2",
+        "provider": "gpt_sovits",
+        "install_mode": "local_import",
+        "download_url": "",
+        "model_url": "",
+        "guide_url": "docs/VOICE_PACKS.md"
+      }
+    },
+    {
+      "id": "dafeiyu",
+      "display_name": "大肥鱼",
+      "aliases": [
+        "小鲸鱼",
+        "DeepSeek"
+      ],
+      "persona_file": "astrbot/data/personas/dafeiyu.md",
+      "style_file": "",
+      "accent": "#4f91d8",
+      "voice_binding": {
+        "voice_id": "feiyu_voice",
+        "display_name": "肥鱼声音",
+        "provider": "feiyu_voice_http",
+        "install_mode": "external_service",
+        "download_url": "https://github.com/Esmerubphire/astrbot_plugin_feiyu_voice",
+        "model_url": "https://huggingface.co/Esmerubphire/FeiyuVoice-CosyVoice3",
+        "guide_url": "https://github.com/Esmerubphire/astrbot_plugin_feiyu_voice/blob/main/README.md"
+      }
+    }
+  ]
+}

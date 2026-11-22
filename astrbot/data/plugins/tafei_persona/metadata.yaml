@@ -2,7 +2,7 @@ name: tafei_persona
 display_name: 塔菲人设教学
 desc: 在 QQ 里用 /tf_* 命令教塔菲说话方式与语录，实时注入 system prompt
 help: /tf_add 单条、/tf_bulk 整段批量、/tf_show 查看、/tf_del 删除、/tf_set 覆盖、/tf_clear 清空
-version: 1.2.0
+version: 1.3.0
 author: local
 repo: ""
 astrbot_version: ">=4.11.0"

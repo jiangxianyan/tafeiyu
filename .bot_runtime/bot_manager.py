@@ -49,8 +49,11 @@ BAT_NAPCAT = "start_napcat.bat"
 RUNTIME_DIR = ".bot_runtime"   # 启动 bat 的存放目录（内部产物，用户不需要碰）
 CONSOLE_BAT = "机器人启动.bat"   # 用户双击入口：双击即启动，然后进菜单
 CONSOLE_BAT_OLD = ("机器人控制台.bat",)   # 历史命名，生成时顺手清掉
+ENABLE_LEGACY_CONSOLE = False   # tafeiyu uses the GUI launcher as the only public entry
 RENAME_PS1 = "rename_qq_window.ps1"   # QQ 窗口改名辅助脚本（后台尽力而为）
 RUNTIME_MGR = "bot_manager.py"   # 运行时副本：任意命令运行时拷到 .bot_runtime\ 下，双击 bat 调它
+NAP_START_LIMIT = 5
+NAP_START_LEDGER = "napcat_start_attempts.json"
 
 # QQ 窗口改名脚本（ASCII only——PS5.1 对无 BOM 文件按 ANSI 读，中文会乱码）。
 # 原理：QQ 主窗口标题会被 QQ 自己重设（登录前后都变），所以轮询多轮用
@@ -91,6 +94,7 @@ for ($i = 0; $i -lt $tries; $i++) {
 
 DASH_PORT = "6185"   # AstrBot WebUI
 WS_PORT = "6199"     # AstrBot 反向 WS（NapCat 连这里）
+NO_WINDOW = 0x08000000
 
 
 def log(msg):
@@ -108,7 +112,8 @@ def run_ps_pids(ps_pipeline, tag):
     full = "%s | Out-File -FilePath '%s' -Encoding utf8" % (ps_pipeline, out_path)
     try:
         subprocess.run(["powershell", "-NoProfile", "-Command", full],
-                       capture_output=True, text=True, errors="replace", timeout=25)
+                       capture_output=True, text=True, errors="replace", timeout=25,
+                       creationflags=0x08000000)
     except Exception:
         pass
     pids = []
@@ -165,7 +170,8 @@ def listening_pids(port):
     try:
         out = subprocess.run(
             ["netstat", "-ano", "-p", "tcp"],
-            capture_output=True, text=True, errors="replace", timeout=15
+            capture_output=True, text=True, errors="replace", timeout=15,
+            creationflags=NO_WINDOW,
         ).stdout
     except Exception:
         return []
@@ -188,7 +194,8 @@ def pids_connected_to(port):
     try:
         out = subprocess.run(
             ["netstat", "-ano", "-p", "tcp"],
-            capture_output=True, text=True, errors="replace", timeout=15
+            capture_output=True, text=True, errors="replace", timeout=15,
+            creationflags=NO_WINDOW,
         ).stdout
     except Exception:
         return []
@@ -282,7 +289,8 @@ def bat_window_pids(where):
 def kill_tree(pid):
     # errors="replace" 必须带：taskkill 成功时输出中文（GBK），strict 解码会把读线程炸掉
     subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                   capture_output=True, text=True, errors="replace")
+                   capture_output=True, text=True, errors="replace",
+                   creationflags=NO_WINDOW)
 
 
 def runtime_dir(base):
@@ -290,6 +298,47 @@ def runtime_dir(base):
     d = os.path.join(base, RUNTIME_DIR)
     os.makedirs(d, exist_ok=True)
     return d
+
+
+def claim_napcat_start(base):
+    """Record NapCat starts and warn after five daily attempts without blocking."""
+    directory = runtime_dir(base)
+    path = os.path.join(directory, NAP_START_LEDGER)
+    today = time.strftime("%Y-%m-%d")
+    data = {}
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        data = {}
+    if str(data.get("date") or "") != today:
+        data = {"date": today, "count": 0}
+    count = int(data.get("count") or 0)
+    data["count"] = count + 1
+    fd, temp_path = tempfile.mkstemp(
+        prefix="napcat-start-",
+        suffix=".tmp",
+        dir=directory,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        os.replace(temp_path, path)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+    if data["count"] > NAP_START_LIMIT:
+        log(
+            f"[警告] {today} NapCat/QQ 已启动 {data['count']} 次。"
+            "继续手动启动仍被允许，但建议先冷却 30-60 分钟，避免加重风控。"
+        )
+    else:
+        log(
+            f"[计数] {today} NapCat/QQ 启动尝试 "
+            f"{data['count']}/{NAP_START_LIMIT}"
+        )
+    return True
 
 
 def ensure_runtime_copy(base):
@@ -330,6 +379,8 @@ def ensure_console_bat(base, use_relative=True):
     %~dp0.bot_runtime\\bot_manager.py）——部署目录整体挪动/拷到别的盘都不失效；
     副本不可用时退回当前脚本的绝对路径（部署期兜底）。
     """
+    if not ENABLE_LEGACY_CONSOLE:
+        return
     for old in CONSOLE_BAT_OLD:
         try:
             legacy = os.path.join(base, old)
@@ -491,16 +542,20 @@ def cmd_start(cfg, base):
     # 启动前先杀一次残留（用户约定 + pitfalls C5：永远单实例全新启动）
     cmd_kill_astrbot(cfg, base)
     time.sleep(2)
-    clean_legacy_bat(base, BAT_ASTRBOT)
-    bat = os.path.join(runtime_dir(base), BAT_ASTRBOT)
-    with open(bat, "w", encoding="gbk", errors="replace") as f:
-        f.write(f'@echo off\r\ntitle qqaibot-AstrBot\r\nset "ASTRBOT_ROOT={root}"\r\n'
-                f'cd /d "{root}"\r\n"{exe}" run\r\npause\r\n')
-    # start 的第一个参数必须带引号才被当窗口标题；list 形式下裸写 "AstrBot"
-    # 会被 start 当成程序名去找 →「系统找不到文件 AstrBot」（实测踩坑）。
-    # 空标题 "" + 窗口名由 bat 里的 title 设置，引号全部由 bat 文件承担。
-    subprocess.run(["cmd", "/c", "start", "", bat], check=False)
-    log("[启动] AstrBot 新窗口已打开，等待 WebUI 就绪 ...")
+    env = os.environ.copy()
+    env["ASTRBOT_ROOT"] = root
+    env.update({"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
+    with open(os.path.join(base, "manager-astrbot.log"), "ab") as output:
+        subprocess.Popen(
+            [exe, "run"],
+            cwd=root,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            creationflags=NO_WINDOW,
+        )
+    log("[启动] AstrBot 已在后台启动，等待 WebUI 就绪 ...")
     for _ in range(60):
         time.sleep(2)
         if listening_pids(DASH_PORT):
@@ -522,28 +577,69 @@ def cmd_start(cfg, base):
         if not os.path.isdir(shell_dir):
             log(f"[错误] NapCat Shell 目录不存在: {shell_dir}")
             return 1
-        clean_legacy_bat(base, BAT_NAPCAT)
-        bat = os.path.join(runtime_dir(base), BAT_NAPCAT)
-        with open(bat, "w", encoding="gbk", errors="replace") as f:
-            f.write(f'@echo off\r\ntitle qqaibot-NapCat\r\ncd /d "{shell_dir}"\r\n'
-                    f'call napcat.quick.bat\r\npause\r\n')
-        subprocess.run(["cmd", "/c", "start", "", bat], check=False)  # 空标题，同 AstrBot 处的坑
-        log("[启动] NapCat 新窗口已打开（quick 免扫码登录；首次部署的扫码也走本脚本 scan，见 SKILL.md Phase 6）")
+        boot_exe = os.path.join(shell_dir, "NapCatWinBootMain.exe")
+        if not os.path.isfile(boot_exe):
+            log(f"[错误] NapCat 启动文件不存在: {boot_exe}")
+            return 1
+        claim_napcat_start(base)
+        arguments = [boot_exe]
+        qq_no = str(cfg.get("qq") or "").strip()
+        if qq_no:
+            arguments.append(qq_no)
+        subprocess.Popen(
+            arguments,
+            cwd=shell_dir,
+            stdin=subprocess.DEVNULL,
+            creationflags=NO_WINDOW,
+        )
+        log("[启动] NapCat 已在后台启动（二维码由启动器窗口显示）")
         # 后台尽力把 bot 的 QQ 窗口标题改成 qqaibot-QQ-<QQ号>（防与主号 QQ 混淆）；
         # QQ 登录前后会自己重设标题，ps1 内部轮询多轮；失败不影响功能
-        qq_no = str(cfg.get("qq") or "").strip()
         qq_title = f"qqaibot-QQ-{qq_no}" if qq_no else "qqaibot-QQ"
         try:
             ps1 = ensure_rename_ps1(runtime_dir(base))
             subprocess.Popen(
                 ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                  "-File", ps1, "-root", nc_root, "-title", qq_title],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=0x08000000)
             log(f"[启动] bot 的 QQ 窗口将在登录后自动改名为 {qq_title}（任务栏辨识用，失败不影响功能）")
         except Exception as e:
             log(f"[提示] QQ 窗口改名任务未能启动（不影响功能）: {e}")
     log("[完成] 启动流程已执行。停止请用: python bot_manager.py stop")
     return 0
+
+
+def cmd_restart_astrbot(cfg, base):
+    """Restart AstrBot only; keep NapCat/QQ alive for reverse-WS reconnect."""
+    cmd_kill_astrbot(cfg, base)
+    time.sleep(2)
+    root = cfg["astrbot_root"]
+    exe = cfg["astrbot_exe"]
+    if not os.path.isfile(exe):
+        log(f"[错误] AstrBot 启动文件不存在: {exe}")
+        return 1
+    env = os.environ.copy()
+    env["ASTRBOT_ROOT"] = root
+    env.update({"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
+    with open(os.path.join(base, "manager-astrbot.log"), "ab") as output:
+        subprocess.Popen(
+            [exe, "run"],
+            cwd=root,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            creationflags=NO_WINDOW,
+        )
+    log("[启动] 仅重启 AstrBot，NapCat/QQ 保持不变")
+    for _ in range(60):
+        time.sleep(2)
+        if listening_pids(DASH_PORT):
+            log("[就绪] AstrBot WebUI 已恢复监听")
+            return 0
+    log("[警告] 120 秒内未检测到 AstrBot WebUI")
+    return 1
 
 
 def cmd_scan(cfg, base):
@@ -556,6 +652,7 @@ def cmd_scan(cfg, base):
     if not shell_dir or not os.path.isdir(shell_dir):
         log(f"[错误] napcat_shell_dir 未回填或不存在: {shell_dir}——先完成 Phase 6 安装并把目录写进 deploy_state.json")
         return 1
+    claim_napcat_start(base)
     real = os.path.join(shell_dir, "napcat.bat")
     if not os.path.isfile(real):
         log(f"[错误] {real} 不存在——检查 napcat_shell_dir 是否指向 NapCat.*.Shell 目录（别指向 bootmain）")
@@ -583,7 +680,15 @@ def cmd_stop(cfg, base=None):
 
 def main():
     cmd = sys.argv[1].lower() if len(sys.argv) > 1 else ""
-    if cmd not in ("start", "stop", "status", "scan", "kill_astrbot", "kill_napcat"):
+    if cmd not in (
+        "start",
+        "stop",
+        "status",
+        "scan",
+        "kill_astrbot",
+        "kill_napcat",
+        "restart-astrbot",
+    ):
         print(__doc__)
         sys.exit(2)
     cfg, base = load_config()
@@ -591,7 +696,8 @@ def main():
     ensure_console_bat(base, use_rel)   # 任意命令都刷新双击入口
     return {"start": cmd_start, "stop": cmd_stop, "status": cmd_status,
             "scan": cmd_scan,
-            "kill_astrbot": cmd_kill_astrbot, "kill_napcat": cmd_kill_napcat}[cmd](cfg, base)
+            "kill_astrbot": cmd_kill_astrbot, "kill_napcat": cmd_kill_napcat,
+            "restart-astrbot": cmd_restart_astrbot}[cmd](cfg, base)
 
 
 if __name__ == "__main__":

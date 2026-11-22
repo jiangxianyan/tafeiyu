@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "id": "example.weather_hint",
+  "name": "天气提醒",
+  "version": "1.0.0",
+  "description": "用户问到天气时，以当前人格的语气提醒对方带伞或注意温度。",
+  "author": "tafeiyu example",
+  "permissions": [
+    "prompt"
+  ],
+  "prompt_file": "prompt.md",
+  "triggers": [
+    "天气",
+    "下雨",
+    "温度",
+    "降温",
+    "带伞"
+  ],
+  "homepage": ""
+}
