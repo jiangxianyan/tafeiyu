@@ -63,7 +63,7 @@ from ui_theme import (
     SURFACE_ALT,
     SURFACE_SOFT,
 )
-from ui_widgets import NavPill, RoundedButton
+from ui_widgets import NavPill, RoundedButton, apply_windows_dark_frame
 from voice_center import open_persona_voice_center
 from yaoguang_memory import open_memory_map
 
@@ -74,9 +74,16 @@ class Launcher(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("塔菲鱼")
-        self.geometry("1120x740")
-        self.minsize(980, 650)
+        self.overrideredirect(True)
+        window_width, window_height = 1120, 774
+        window_x = max(0, (self.winfo_screenwidth() - window_width) // 2)
+        window_y = max(0, (self.winfo_screenheight() - window_height) // 2)
+        self.geometry(
+            f"{window_width}x{window_height}+{window_x}+{window_y}"
+        )
+        self.minsize(980, 684)
         self.configure(bg=BG_DEEP)
+        self.configure(borderwidth=0, highlightthickness=0)
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.stop_event = threading.Event()
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
@@ -88,6 +95,9 @@ class Launcher(tk.Tk):
         self.force_restart_after_setup = False
         self.force_restart_qq = False
         self.action_mode = "start"
+        self._maximized = False
+        self._restore_geometry = self.geometry()
+        self._drag_offset = (0, 0)
         self.setup_wizard: SetupWizard | None = None
         self.status_labels: dict[str, tk.Label] = {}
         self.status_values: dict[str, tk.StringVar] = {}
@@ -101,6 +111,7 @@ class Launcher(tk.Tk):
         self.last_qr_mtime = 0.0
         self._build_ui()
         self.after(120, self._poll_events)
+        self.after(180, lambda: apply_windows_dark_frame(self))
         if setup_required() and os.environ.get("TAFEI_SKIP_SETUP") != "1":
             self.withdraw()
             self.after(150, lambda: self._open_setup(first_run=True))
@@ -115,6 +126,8 @@ class Launcher(tk.Tk):
             self.iconbitmap(str(icon))
         except Exception:
             pass
+
+        self._build_titlebar()
 
         style = ttk.Style(self)
         style.theme_use("clam")
@@ -313,6 +326,118 @@ class Launcher(tk.Tk):
             page.grid(row=0, column=0, sticky="nsew")
         self.show_page("home")
         self._append_log("客户端已就绪。")
+
+    def _build_titlebar(self) -> None:
+        titlebar = tk.Frame(self, bg=SIDEBAR, height=34)
+        titlebar.pack(fill="x")
+        titlebar.pack_propagate(False)
+        titlebar.bind("<ButtonPress-1>", self._begin_window_drag)
+        titlebar.bind("<B1-Motion>", self._drag_window)
+        titlebar.bind("<Double-Button-1>", lambda _event: self._toggle_maximize())
+
+        icon = tk.Canvas(
+            titlebar,
+            width=24,
+            height=24,
+            bg=SIDEBAR,
+            highlightthickness=0,
+        )
+        icon.pack(side="left", padx=(9, 5), pady=5)
+        icon.create_oval(2, 2, 22, 22, fill=PINK_SOFT, outline=PINK, width=1)
+        icon.create_text(
+            12,
+            12,
+            text="T",
+            fill=PINK,
+            font=("Microsoft YaHei UI", 9, "bold"),
+        )
+        title_label = tk.Label(
+            titlebar,
+            text="塔菲鱼",
+            bg=SIDEBAR,
+            fg=INK,
+            font=("Microsoft YaHei UI", 9, "bold"),
+        )
+        title_label.pack(side="left")
+        for widget in (titlebar, title_label):
+            widget.bind("<ButtonPress-1>", self._begin_window_drag)
+            widget.bind("<B1-Motion>", self._drag_window)
+            widget.bind(
+                "<Double-Button-1>",
+                lambda _event: self._toggle_maximize(),
+            )
+
+        controls = tk.Frame(titlebar, bg=SIDEBAR)
+        controls.pack(side="right", fill="y")
+        self._title_button(controls, "×", self._close, danger=True)
+        self.maximize_button = self._title_button(
+            controls,
+            "□",
+            self._toggle_maximize,
+        )
+        self._title_button(controls, "—", self._minimize_window)
+        tk.Frame(titlebar, bg=BORDER, height=1).pack(
+            side="bottom",
+            fill="x",
+        )
+
+    def _title_button(
+        self,
+        parent: tk.Misc,
+        text: str,
+        command,
+        *,
+        danger: bool = False,
+    ) -> tk.Button:
+        button = tk.Button(
+            parent,
+            text=text,
+            command=command,
+            bg=SIDEBAR,
+            fg=INK,
+            activebackground=RED if danger else SURFACE_ALT,
+            activeforeground="#FFFFFF",
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+            width=4,
+            font=("Microsoft YaHei UI", 10),
+            cursor="hand2",
+        )
+        button.pack(side="right", fill="y")
+        return button
+
+    def _begin_window_drag(self, event) -> None:
+        if self._maximized:
+            return
+        self._drag_offset = (event.x_root - self.winfo_x(), event.y_root - self.winfo_y())
+
+    def _drag_window(self, event) -> None:
+        if self._maximized:
+            return
+        x = event.x_root - self._drag_offset[0]
+        y = event.y_root - self._drag_offset[1]
+        self.geometry(f"+{x}+{y}")
+
+    def _toggle_maximize(self) -> None:
+        if self._maximized:
+            self.geometry(self._restore_geometry)
+            self._maximized = False
+            self.maximize_button.configure(text="□")
+            return
+        self._restore_geometry = self.geometry()
+        width = self.winfo_screenwidth()
+        height = self.winfo_screenheight()
+        self.geometry(f"{width}x{height}+0+0")
+        self._maximized = True
+        self.maximize_button.configure(text="❐")
+
+    def _minimize_window(self) -> None:
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            ctypes.windll.user32.ShowWindow(hwnd, 6)
+        except Exception:
+            self.withdraw()
 
     def show_page(self, key: str) -> None:
         if key not in self.pages:

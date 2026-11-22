@@ -33,7 +33,7 @@ from ui_theme import (
     SURFACE_ALT,
     SURFACE_SOFT,
 )
-from ui_widgets import RoundedButton
+from ui_widgets import RoundedButton, apply_windows_dark_frame
 
 DARK = INK
 
@@ -75,6 +75,7 @@ class SetupWizard(tk.Toplevel):
         self.page_title = tk.StringVar(value="模型服务")
         self.step_label = tk.StringVar(value="步骤 1 / 5")
         self._build_ui()
+        self.after(180, lambda: apply_windows_dark_frame(self))
         self._show_page(0)
         self.grab_set()
         try:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ctypes
+import sys
 import tkinter as tk
 import tkinter.font as tkfont
 from collections.abc import Callable
@@ -26,6 +28,76 @@ def _parent_bg(widget: tk.Misc, fallback: str = BG_DEEP) -> str:
         return str(value) if value else fallback
     except tk.TclError:
         return fallback
+
+
+def apply_windows_dark_frame(
+    window: tk.Misc,
+    *,
+    border: str | None = None,
+    caption: str = SIDEBAR,
+    text: str = INK,
+) -> None:
+    """Apply the dark DWM frame color on Windows 11."""
+
+    if sys.platform != "win32":
+        return
+
+    def color_ref(value: str) -> int:
+        value = value.lstrip("#")
+        red, green, blue = (
+            int(value[0:2], 16),
+            int(value[2:4], 16),
+            int(value[4:6], 16),
+        )
+        return red | (green << 8) | (blue << 16)
+
+    try:
+        window.update_idletasks()
+        user32 = ctypes.windll.user32
+        dwmapi = ctypes.windll.dwmapi
+        hwnd = int(window.winfo_id())
+        parent = int(user32.GetParent(hwnd))
+        if parent:
+            hwnd = parent
+        get_style = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+        set_style = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+        style = int(get_style(hwnd, -20))
+        style = (style | 0x00040000) & ~0x00000080
+        set_style(hwnd, -20, style)
+        user32.SetWindowPos(
+            hwnd,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0x0001 | 0x0002 | 0x0004 | 0x0020,
+        )
+        enabled = ctypes.c_int(1)
+        dwmapi.DwmSetWindowAttribute(
+            hwnd,
+            20,
+            ctypes.byref(enabled),
+            ctypes.sizeof(enabled),
+        )
+        # DWMWA_COLOR_NONE disables the Windows 11 accent border entirely.
+        border_value = ctypes.c_uint(0xFFFFFFFE)
+        dwmapi.DwmSetWindowAttribute(
+            hwnd,
+            34,
+            ctypes.byref(border_value),
+            ctypes.sizeof(border_value),
+        )
+        for attribute, value in ((35, caption), (36, text)):
+            color = ctypes.c_int(color_ref(value))
+            dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                attribute,
+                ctypes.byref(color),
+                ctypes.sizeof(color),
+            )
+    except Exception:
+        return
 
 
 def _rounded_rectangle(
