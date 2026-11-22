@@ -33,6 +33,7 @@ from ui_theme import (
     SURFACE_ALT,
     SURFACE_SOFT,
 )
+from ui_widgets import RoundedButton
 
 DARK = INK
 
@@ -207,20 +208,29 @@ class SetupWizard(tk.Toplevel):
 
         footer = tk.Frame(body, bg=BG)
         footer.grid(row=2, column=0, sticky="ew", pady=(14, 0))
-        self.back_button = ttk.Button(footer, text="上一步", command=self._back)
-        self.back_button.pack(side="left")
-        ttk.Button(footer, text="取消", command=self._cancel).pack(
-            side="left", padx=8
+        self.back_button = RoundedButton(
+            footer,
+            text="上一步",
+            kind="secondary",
+            command=self._back,
         )
-        ttk.Button(
+        self.back_button.pack(side="left")
+        RoundedButton(
+            footer,
+            text="取消",
+            kind="secondary",
+            command=self._cancel,
+        ).pack(side="left", padx=8)
+        RoundedButton(
             footer,
             text="配置卡住？安全重置",
+            kind="danger",
             command=self._safe_reset,
         ).pack(side="left", padx=(8, 0))
-        self.next_button = ttk.Button(
+        self.next_button = RoundedButton(
             footer,
             text="下一步",
-            style="Accent.TButton",
+            kind="primary",
             command=self._next,
         )
         self.next_button.pack(side="right")
@@ -468,9 +478,11 @@ class SetupWizard(tk.Toplevel):
     ) -> list[tk.Widget]:
         entry = self._entry_row(parent, row, label, variable)
         entry.configure(width=47)
-        button = ttk.Button(
+        button = RoundedButton(
             parent,
             text="浏览",
+            kind="secondary",
+            min_width=64,
             command=lambda: self._browse(variable, suffix),
         )
         button.grid(row=row, column=2, padx=(8, 0), pady=5)

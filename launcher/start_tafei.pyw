@@ -63,6 +63,7 @@ from ui_theme import (
     SURFACE_ALT,
     SURFACE_SOFT,
 )
+from ui_widgets import NavPill, RoundedButton
 from voice_center import open_persona_voice_center
 from yaoguang_memory import open_memory_map
 
@@ -91,7 +92,7 @@ class Launcher(tk.Tk):
         self.status_labels: dict[str, tk.Label] = {}
         self.status_values: dict[str, tk.StringVar] = {}
         self.pages: dict[str, tk.Frame] = {}
-        self.nav_buttons: dict[str, tk.Button] = {}
+        self.nav_buttons: dict[str, NavPill] = {}
         self.page_title = tk.StringVar(value="运行概览")
         self.page_subtitle = tk.StringVar(value="查看服务状态并控制塔菲鱼")
         self.qr_window: tk.Toplevel | None = None
@@ -205,32 +206,21 @@ class Launcher(tk.Tk):
         brand.create_line(22, 118, 72, 118, fill=PINK, width=2)
 
         nav_definition = [
-            ("home", "◈  运行概览"),
-            ("personas", "◇  人格切换"),
-            ("voice", "◉  声音中心"),
-            ("stickers", "▦  表情包库"),
-            ("memory", "✦  记忆星图"),
-            ("plugins", "⬡  人格插件"),
-            ("settings", "⚙  设置与诊断"),
+            ("home", "运行概览"),
+            ("personas", "人格切换"),
+            ("voice", "声音中心"),
+            ("stickers", "表情包库"),
+            ("memory", "记忆星图"),
+            ("plugins", "人格插件"),
+            ("settings", "设置与诊断"),
         ]
         for key, label in nav_definition:
-            button = tk.Button(
+            button = NavPill(
                 sidebar,
                 text=label,
                 command=lambda page=key: self.show_page(page),
-                anchor="w",
-                relief="flat",
-                bd=0,
-                padx=18,
-                pady=11,
-                bg=SIDEBAR,
-                fg=MUTED,
-                activebackground=PINK_SOFT,
-                activeforeground=INK,
-                cursor="hand2",
-                font=("Microsoft YaHei UI", 10),
             )
-            button.pack(fill="x", padx=12, pady=3)
+            button.pack(anchor="w", padx=12, pady=3)
             self.nav_buttons[key] = button
 
         footer = tk.Frame(sidebar, bg=SIDEBAR)
@@ -342,18 +332,7 @@ class Launcher(tk.Tk):
         self.page_subtitle.set(titles[key][1])
         self._update_header_text()
         for name, button in self.nav_buttons.items():
-            if name == key:
-                button.configure(
-                    bg=PINK_SOFT,
-                    fg=PINK,
-                    font=("Microsoft YaHei UI", 10, "bold"),
-                )
-            else:
-                button.configure(
-                    bg=SIDEBAR,
-                    fg=MUTED,
-                    font=("Microsoft YaHei UI", 10),
-                )
+            button.set_active(name == key)
         if key == "personas":
             self._refresh_personas_page()
         elif key == "voice":
@@ -406,17 +385,31 @@ class Launcher(tk.Tk):
 
         actions = tk.Frame(page, bg=BG)
         actions.pack(fill="x", pady=(12, 8))
-        self.refresh_button = ttk.Button(actions, text="启动 / 重新检查", command=self.start)
+        self.refresh_button = RoundedButton(
+            actions,
+            text="启动 / 重新检查",
+            kind="primary",
+            command=self.start,
+        )
         self.refresh_button.pack(side="left")
-        ttk.Button(actions, text="停止服务", command=self._stop_services).pack(
-            side="left", padx=8
-        )
-        ttk.Button(actions, text="打开 AstrBot", command=self._open_dashboard).pack(
-            side="left"
-        )
-        ttk.Button(actions, text="登录二维码", command=self._show_login_qr).pack(
-            side="left", padx=8
-        )
+        RoundedButton(
+            actions,
+            text="停止服务",
+            kind="danger",
+            command=self._stop_services,
+        ).pack(side="left", padx=8)
+        RoundedButton(
+            actions,
+            text="打开 AstrBot",
+            kind="secondary",
+            command=self._open_dashboard,
+        ).pack(side="left")
+        RoundedButton(
+            actions,
+            text="登录二维码",
+            kind="secondary",
+            command=self._show_login_qr,
+        ).pack(side="left", padx=8)
         tk.Label(
             page,
             text="关闭客户端窗口不会停止机器人；需要停服时请点击“停止服务”。",
@@ -451,9 +444,10 @@ class Launcher(tk.Tk):
             fg=MUTED,
             font=("Microsoft YaHei UI", 9),
         ).pack(side="left")
-        ttk.Button(
+        RoundedButton(
             toolbar,
             text="添加人格",
+            kind="primary",
             command=self._add_persona,
         ).pack(side="right")
         self.persona_cards = tk.Frame(page, bg=BG)
@@ -515,14 +509,16 @@ class Launcher(tk.Tk):
             controls = tk.Frame(card, bg=CARD)
             controls.pack(fill="x")
             if persona_id != active:
-                ttk.Button(
+                RoundedButton(
                     controls,
                     text="切换到此人格",
+                    kind="primary",
                     command=lambda pid=persona_id, label=name: self._switch_persona(pid, label),
                 ).pack(side="left")
-            ttk.Button(
+            RoundedButton(
                 controls,
                 text="人格形象",
+                kind="secondary",
                 command=lambda: open_persona_visuals_center(self),
             ).pack(side="left", padx=(7, 0))
         self.persona_cards.grid_columnconfigure(0, weight=1)
@@ -595,10 +591,10 @@ class Launcher(tk.Tk):
             font=("Microsoft YaHei UI", 11),
         )
         self.voice_summary.pack(fill="x")
-        ttk.Button(
+        RoundedButton(
             page,
             text="打开人格与声线中心",
-            style="Accent.TButton",
+            kind="primary",
             command=lambda: open_persona_voice_center(self),
         ).pack(anchor="w", padx=22, pady=(0, 18))
         return page
@@ -643,10 +639,10 @@ class Launcher(tk.Tk):
             justify="left",
             font=("Microsoft YaHei UI", 10),
         ).pack(anchor="w", padx=24)
-        ttk.Button(
+        RoundedButton(
             page,
             text=button_text,
-            style="Accent.TButton",
+            kind="primary",
             command=command,
         ).pack(anchor="w", padx=24, pady=18)
         return page
@@ -678,9 +674,13 @@ class Launcher(tk.Tk):
             ("关闭客户端窗口", self._close),
         ]
         for text, command in rows:
-            ttk.Button(actions, text=text, command=command, width=28).pack(
-                anchor="w", pady=5
-            )
+            RoundedButton(
+                actions,
+                text=text,
+                kind="danger" if "停止" in text else "secondary",
+                command=command,
+                min_width=220,
+            ).pack(anchor="w", pady=5)
         tk.Label(
             page,
             text=(

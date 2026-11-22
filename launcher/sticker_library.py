@@ -32,6 +32,7 @@ from ui_theme import (  # noqa: E402
     SURFACE_ALT,
     SURFACE_SOFT,
 )
+from ui_widgets import RoundedButton  # noqa: E402
 
 try:
     from PIL import Image, ImageTk
@@ -125,11 +126,16 @@ class StickerLibraryPage(tk.Frame):
             font=("Microsoft YaHei UI", 9),
         )
         self.count_label.pack(side="left", padx=(0, 12))
-        ttk.Button(toolbar, text="刷新", command=self.refresh).pack(side="left")
-        ttk.Button(
+        RoundedButton(
+            toolbar,
+            text="刷新",
+            kind="secondary",
+            command=self.refresh,
+        ).pack(side="left")
+        RoundedButton(
             toolbar,
             text="导入表情",
-            style="Accent.TButton",
+            kind="primary",
             command=self._import,
         ).pack(side="left", padx=(8, 0))
 
@@ -222,9 +228,9 @@ class StickerLibraryPage(tk.Frame):
         preview_host = tk.Frame(
             inspector,
             bg=SURFACE_SOFT,
-            height=102,
+            height=90,
         )
-        preview_host.pack(fill="x", padx=17, pady=(12, 8))
+        preview_host.pack(fill="x", padx=17, pady=(8, 5))
         preview_host.pack_propagate(False)
         self.preview = tk.Label(
             preview_host,
@@ -243,7 +249,7 @@ class StickerLibraryPage(tk.Frame):
         ).pack(anchor="w", padx=18)
 
         fields = tk.Frame(inspector, bg=SURFACE)
-        fields.pack(fill="both", expand=True, padx=17, pady=(6, 0))
+        fields.pack(fill="both", expand=True, padx=17, pady=(4, 0))
         definitions = (
             ("keywords", "关键词", "用逗号分隔，用于搜索与匹配"),
             ("emotion", "情绪", "例如开心、无语、委屈"),
@@ -261,21 +267,23 @@ class StickerLibraryPage(tk.Frame):
         )
 
         actions = tk.Frame(inspector, bg=SURFACE)
-        actions.pack(fill="x", padx=17, pady=10)
-        ttk.Button(
+        actions.pack(fill="x", padx=17, pady=7)
+        RoundedButton(
             actions,
             text="保存修改",
-            style="Accent.TButton",
+            kind="primary",
             command=self._save,
         ).pack(side="left")
-        ttk.Button(
+        RoundedButton(
             actions,
             text="打开图片",
+            kind="secondary",
             command=self._open_image,
         ).pack(side="left", padx=(8, 0))
-        ttk.Button(
+        RoundedButton(
             actions,
             text="删除",
+            kind="danger",
             command=self._remove,
         ).pack(side="left", padx=(8, 0))
         self._set_editor_enabled(False)
@@ -290,7 +298,7 @@ class StickerLibraryPage(tk.Frame):
         height: int,
     ) -> None:
         block = tk.Frame(parent, bg=SURFACE)
-        block.pack(fill="x", pady=(0, 5))
+        block.pack(fill="x", pady=(0, 3))
         header = tk.Frame(block, bg=SURFACE)
         header.pack(fill="x")
         tk.Label(
