@@ -93,6 +93,7 @@ __pycache__/
 *.jpg
 *.jpeg
 *.gif
+!/docs/tafeiyu-dashboard.png
 !/assets/
 !/assets/ui/
 !/assets/ui/*.png

@@ -1,239 +1,150 @@
-# tafeiyu
+<div align="center">
+  <img src="assets/local/tafeiyu_icon.png" width="112" alt="塔菲鱼图标">
+  <h1>塔菲鱼 · tafeiyu</h1>
+  <p><strong>把会聊天、会看图、会记事、会斗图、能换声线的 AI 陪聊，装进你的 QQ。</strong></p>
+  <p>Windows 桌面客户端 · 本地优先 · 人格独立记忆与声线 · AstrBot + OneBot</p>
 
-`tafeiyu`（塔菲鱼）is an unofficial QQ AI companion built on AstrBot and OneBot.
+  [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0ea5e9?style=flat-square)](#快速开始)
+  [![AstrBot](https://img.shields.io/badge/runtime-AstrBot%20%2B%20OneBot-7c3aed?style=flat-square)](docs/ARCHITECTURE.md)
+  [![License](https://img.shields.io/github/license/jiangxianyan/tafeiyu?style=flat-square)](LICENSE)
+  [![Stars](https://img.shields.io/github/stars/jiangxianyan/tafeiyu?style=flat-square)](https://github.com/jiangxianyan/tafeiyu/stargazers)
 
-The source is licensed under **AGPL-3.0**; see `LICENSE`. The desktop client is
-a Windows control center with a left navigation rail for runtime status,
-one-click persona switching, voice bindings, the visual memory atlas, sticker
-asset management, persona plugins, setup, and diagnostics.
+  [功能亮点](#不只是文字回复) · [快速开始](#快速开始) · [文档](#文档地图) · [项目边界](#重要说明) · [下载 Releases](https://github.com/jiangxianyan/tafeiyu/releases/latest)
+</div>
 
-The client uses an original dark aurora visual theme, with generated artwork
-stored in `assets/ui/` and reproducible through `scripts/generate_ui_art.py`.
-See [docs/UI_DESIGN.md](docs/UI_DESIGN.md) for the reference direction and
-asset licensing notes.
+![塔菲鱼桌面客户端概览](docs/tafeiyu-dashboard.png)
 
-## Unofficial fan project and voice assets
+塔菲鱼不是另一个套着 Web 页面的聊天机器人。它是一个面向 Windows 的 QQ AI 陪聊控制中心：用可视化客户端管理模型、QQ 连接、人格、语音、记忆、图片和表情包，让不同角色真正拥有各自的声音、关系与长期上下文。
 
-This is an unofficial fan-made companion project. It is not affiliated with,
-authorized by, or endorsed by 永雏塔菲, her official team, or the rights holders.
+> **English TL;DR:** Taffy Fish is a Windows-first, local-persona AI companion client for QQ, featuring per-persona memory, vision, sticker battles, voice bindings, and safe prompt plugins.
 
-Part of the personality and speaking-style guidance is adapted from the
-MIT-licensed [ace-taffy-skill](https://github.com/ly-xxx/ace-taffy-skill)
-project. The original project and its contributors retain their respective
-copyrights.
+## 为什么不只是“接入一个大模型”
 
-Voice model weights, reference audio, generated voice samples, and other
-third-party character assets are **not included** in this repository, its
-installer, or its release packages. The current voice resources do not have a
-confirmed redistribution license. Users must obtain and use voice resources
-that they are legally permitted to use.
+普通 QQ Bot 往往能做到“收到消息，返回文字”。塔菲鱼继续往下做了几步：
 
-Any project community group is for installation discussion and user-assisted
-discovery only. It does not host or endorse unauthorized copies. The group
-number or invitation link, when available, will be published on the release
-page.
+- **角色不会串味**：每个人格拥有独立记忆、视觉形象、插件状态和语音绑定。
+- **聊天不只靠上下文窗口**：冷热记忆会分层、冷却、按线索召回，可固定重要事实。
+- **能看见你发的图**：私聊与群聊图片会先生成视觉描述，再交给角色自然回应。
+- **不只会打字**：支持 GPT-SoVITS 本地声线和外部 HTTP 语音服务，私聊与群聊都可出声。
+- **更像在群聊里生活**：会根据语境补表情包，也能和群友进行有限回合的斗图。
+- **所有能力都装进客户端**：配置向导、人格切换、记忆星图、声音中心、表情包库和人格插件都有可视化界面。
 
-See [NOTICE.md](NOTICE.md) for the full attribution and asset policy.
+## 不只是文字回复
 
-中文说明：本项目是非官方粉丝作品，人格与说话方式的一部分参考了
-MIT 许可的 `ace-taffy-skill`。语音模型权重和参考音频未取得明确的再分发
-许可，因此不会随公开安装包提供。请自行取得并仅使用你有权使用的声线资源；
-项目交流群仅用于安装讨论和合法来源交流，不会托管未经授权的文件，群号或
-加群链接将在 Release 页面公布。
+| 能力 | 当前实现 |
+| --- | --- |
+| 💬 QQ 陪聊 | AstrBot + OneBot，通过独立 QQ 号运行，支持私聊、群聊、名单和历史压缩 |
+| 🎭 多人格 | 默认塔菲与大肥鱼，可导入 Markdown 人格；记忆、形象、声线和插件互相隔离 |
+| 🧠 长期记忆 | 固定事实、热记忆、冷记忆、关系线索与相处习惯；冷记忆可搜索、按线索召回 |
+| ✨ 瑶光记忆星图 | 在客户端中可视化当前人格的关系、话题、习惯和记忆节点 |
+| 👀 图片理解 | 独立视觉模型描述图片，支持私聊识图和主人群聊图片直达回复 |
+| 🎙 角色语音 | 人格切换时同步切换声线；本地 GPT-SoVITS 与外部服务均支持，语音请求和自动语音可配置 |
+| 😺 表情与斗图 | 语境匹配补表情、自动标签、可视化标签编辑、有限回合斗图 |
+| 🧩 人格插件 | 按人格独立启停的声明式提示词扩展，不执行任意 Python 或可执行文件 |
+| 📚 梗百科 | 本地词库，命中时只向当前人格注入一条相关词条，不污染整段上下文 |
+| 🔎 安全搜索 | 显式联网搜索，带隐私清洗、域名策略、私网访问与下载内容防护 |
+| 🖥 一键客户端 | 首次配置向导、运行状态、服务启停、二维码登录、诊断与自动守护 |
 
-## First run
+详细能力和实现说明见 [docs/FEATURES.md](docs/FEATURES.md)。
 
-Install the desktop launcher dependencies first:
+## 为什么它适合“长期养一个角色”
+
+### 声音跟着角色走
+
+切换人格时，塔菲鱼会同时切换该人格绑定的声线，不会因为缓存或配置残留让大肥鱼突然发出塔菲的声音。语音资源未随项目分发，用户可以接入自己有权使用的 GPT-SoVITS 模型和参考音频。
+
+### 记忆不是一条无限增长的聊天记录
+
+重要事实可以被固定；近期提及会保持高温；长时间未用的内容会冷却，但不会消失。需要时，系统会通过当前话题或关系线索把相关记忆重新带回。不同人格不会共享同一套关系记忆。
+
+### 图片、表情和文字走同一条人格链路
+
+看到图片后，视觉描述会作为当前人格的消息输入；表情包也会根据回复情绪和标签选择。角色看到、记住和表达的仍然是同一个人格，而不是几个互不相干的机器人拼接。
+
+### 本地数据和密钥不进入 Git
+
+API Key、QQ 会话、聊天数据库、日志、声线权重和参考音频都被排除在公开仓库之外。记忆星图默认只在本地读取和渲染。
+
+## 快速开始
+
+### 使用 Release 便携包
+
+1. 打开 [最新 Releases](https://github.com/jiangxianyan/tafeiyu/releases/latest)。
+2. 下载全部分卷，核对 SHA-256 后解压到同一目录。
+3. 双击 `启动塔菲.bat`。
+4. 按五步配置向导填写模型、机器人 QQ、主人 QQ、群聊名单，并可选导入自己的声线。
+5. 扫码登录 QQ，等待 AstrBot、NapCat 和本地语音服务全部在线。
+
+首次运行需要准备：
+
+- Windows 10/11；
+- 一个 OpenAI 兼容模型服务或 API Key；
+- 一个独立的机器人 QQ 号；
+- 可选：你有权使用的 GPT-SoVITS 权重与参考音频。
+
+### 从源码运行
 
 ```powershell
+git clone https://github.com/jiangxianyan/tafeiyu.git
+cd tafeiyu
 python -m pip install -r requirements-launcher.txt
 ```
 
-The setup wizard now detects the local AstrBot executable and NapCat Shell,
-records their paths in the ignored deployment state, creates separate text and
-vision providers, and writes the owner QQ into the image-reply allowlist.
+然后运行 `启动塔菲.bat`，按配置向导完成初始化。详细环境与运维要求见 [docs/OPERATIONS.md](docs/OPERATIONS.md)。
 
-The client opens directly into the main dashboard after setup. Imported
-persona Markdown files appear under “人格切换” and receive independent memory,
-visual identity, plugin state, and optional voice binding.
+## 运行结构
 
-On the first launch, `tafeiyu` opens a five-step setup wizard:
+```mermaid
+flowchart LR
+    QQ[QQ 用户] --> N[NapCat / OneBot]
+    N --> A[AstrBot]
+    A --> P[人格与会话]
+    P --> M[冷热记忆]
+    P --> V[图片理解]
+    P --> S[表情与斗图]
+    P --> T[绑定声线]
+    P --> X[人格插件 / 梗百科 / 搜索]
+    M --> G[瑶光记忆星图]
+    A --> Q[QQ 文字与语音回复]
+```
 
-1. Configure an OpenAI-compatible text model, vision model, and API key.
-2. Set the bot QQ and owner QQ, then log in by QR code after setup.
-3. Optionally import GPT-SoVITS weights and one reference audio sample.
-4. Configure group allowlists and blocklists.
-5. Save the configuration, restart the services, and show the login QR code.
+客户端负责启动、配置和可视化；AstrBot 负责消息处理、模型调用与插件链；NapCat 负责 QQ 与 OneBot 桥接；GPT-SoVITS 作为本地可选语音服务。
 
-The first-run wizard does not ask users to rename the default role: `tafei`
-remains the initial persona. Additional built-in or imported personas are
-selected from the client after setup. Users can open the wizard again from the
-launcher to change the model, QQ account, voice pack, or group lists. API keys
-remain in the local AstrBot configuration and are not written to public project
-files.
+## 适合谁
 
-## Personas and memory star map
+- 想给自己的 QQ AI 做完整桌面客户端，而不是只跑一个脚本的人；
+- 想尝试独立人格、独立记忆、独立声音和多角色扩展的人；
+- 想研究本地优先 AI 陪聊架构、冷热记忆或人格插件安全边界的人；
+- 想用公开源码搭一个非商业个人项目，同时保留合规与素材声明的开发者。
 
-The built-in persona catalog contains:
+## 重要说明
 
-- `tafei` — the default Taffy persona.
-- `dafeiyu` — the DeepSeek Xiaojingyu / “大肥鱼” group-chat persona.
+塔菲鱼是**非官方粉丝项目**，与永雏塔菲、其官方团队及相关权利方没有隶属、授权或背书关系。人格与说话方式的一部分参考了 MIT 许可的 [`ace-taffy-skill`](https://github.com/ly-xxx/ace-taffy-skill)。
 
-Persona metadata lives in `config/personas.json`, while the individual persona
-cards remain Markdown files under `astrbot/data/personas/`. Additional personas
-can be added without changing the installer.
+本项目**不包含**角色语音权重、参考音频、生成语音样本、角色表情包或其他未经确认可再分发的第三方素材。公开可访问不等于允许再分发；请只使用自己有权使用的资源，并遵守平台规则、人格权、声音权和著作权。
 
-Each persona has its own voice binding and memory scope. Switching persona also
-switches the selected voice binding; a missing or disabled voice never falls
-back to the previous persona’s voice. Message recall and rolling summaries are
-stored under persona-scoped session keys as well.
+完整声明见 [NOTICE.md](NOTICE.md)，第三方许可见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。
 
-Memory recall now records heat, recall count, last-access time and a pinned
-state. Explicitly remembered facts stay fixed; recently recalled memories stay
-hot; unrecalled entries cool down but remain searchable and are only injected
-when the current message provides a matching cue.
+## 文档地图
 
-The launcher includes a local “瑶光” Memory Star Map. It reads the active persona’s
-speaking rules and only that persona’s records in the local `tafei_memory`
-database, then displays habits, relationships, topics, and conversation
-memories as an interactive star map.
-The current lightweight renderer is built into the client and does not upload
-memory content anywhere. For a future 3D renderer, the MIT-licensed
-[3d-force-graph](https://github.com/vasturiano/3d-force-graph) project is a
-compatible reference.
+| 文档 | 内容 |
+| --- | --- |
+| [功能全景](docs/FEATURES.md) | 当前完整功能、运行边界与组件关系 |
+| [架构说明](docs/ARCHITECTURE.md) | 运行时、插件链和关键设计 |
+| [运维指南](docs/OPERATIONS.md) | 启动、停止、验证与故障处理 |
+| [语音包](docs/VOICE_PACKS.md) | GPT-SoVITS、外部服务、授权和端口问题 |
+| [瑶光记忆](docs/YAOGUANG.md) | 记忆层、星图、隐私和恢复 |
+| [图片与形象](docs/VISION_AND_VISUALS.md) | 私聊识图、群聊图片和人格视觉卡 |
+| [表情与斗图](docs/STICKERS.md) | 标签、同步、概率和回合上限 |
+| [人格插件](docs/PERSONA_PLUGINS.md) | `.tafeiplugin` 格式、安全限制和示例 |
+| [梗百科](docs/MEMEWIKI.md) | 本地词库、匹配和独立数据下载 |
 
-See [docs/YAOGUANG.md](docs/YAOGUANG.md) for the current Yaoguang dashboard,
-memory-layer classification, privacy behavior, and implementation limits.
+## 项目状态
 
-Opt-in web search sanitizes queries before external transmission and applies
-private-network, port, download-file, redirect, domain, response-size and
-content-type checks to public links.
+项目仍在快速迭代，当前以 Windows + QQ + AstrBot 为主。接口、配置结构和界面可能继续调整。遇到问题请通过 [Issues](https://github.com/jiangxianyan/tafeiyu/issues) 提交，并附上脱敏后的错误日志；不要在 Issue 中公开 API Key、QQ 登录信息、聊天记录或声线文件。
 
-## Private-chat vision and persona visual identity
+## License
 
-Group-chat images are processed by the group-chat extension. Private-chat
-images are handled by the separate `tafei_vision` plugin, which describes each
-image with `deepseek/deepseek-vision` before the active persona replies. Image
-descriptions are cached by content hash, and text found inside an image is
-treated as untrusted visual content rather than an instruction.
+项目源码采用 [GNU AGPL-3.0](LICENSE) 许可。分发修改版或通过网络提供修改后的服务时，请遵守 AGPL 的源代码开放要求。
 
-For the configured group-chat owner IDs, an ordinary image now bypasses the
-ambient-chat probability and “stay silent” decision, so sending a picture
-directly produces a visual reply. Existing per-minute reply-density limits
-still apply.
-
-Each persona also has a separate, stable visual identity card under
-`astrbot/data/persona_visuals/`. The launcher’s “人格形象” page can store
-appearance, hair, outfit, colors, motifs, recognition notes, and user-supplied
-authorized reference images. Visual identity is deliberately kept out of
-ordinary cold/hot conversation memory, so chat cannot silently rewrite it and
-Taffy and Dafeiyu never share the same visual card.
-
-See [docs/VISION_AND_VISUALS.md](docs/VISION_AND_VISUALS.md) for configuration,
-recognized markers, privacy behavior, and image-import details.
-
-## Sticker replies and image battles
-
-`tafei_sticker` keeps the original behavior of occasionally appending a
-context-matched sticker after a text reply. It now also detects incoming QQ
-stickers and can replace the generated text with one relevant sticker, creating
-a bounded sticker duel. The default limit is three rounds within 180 seconds,
-with an 85% reply probability and a short anti-retry cooldown.
-
-See [docs/STICKERS.md](docs/STICKERS.md) for commands and configuration. The
-meme-wiki plugin remains a text dictionary and does not choose or send images.
-
-The client’s “表情包库” is a visual asset browser: thumbnails appear on the
-left and the selected sticker’s keywords, emotions, intent, tone, and usage
-notes appear in editable fields on the right. Newly imported files are scanned
-once when AstrBot starts and tagged by the configured vision provider. Existing
-manual tags are never overwritten by that scan.
-
-## Persona-bound voice center
-
-The “人格与声线” page shows the voice binding for every persona:
-
-- Taffy uses a locally imported GPT-SoVITS V2 voice pack.
-- Dafeiyu connects to a separately deployed FeiyuVoice HTTP service.
-
-The page provides official project, model, and deployment-guide buttons. It
-does not bundle third-party weights, reference audio, or copied service code.
-Large-language-model chat continues in text-only mode when the selected
-persona’s voice is unavailable.
-
-See [docs/VOICE_PACKS.md](docs/VOICE_PACKS.md) for installation, licensing,
-port-conflict, and service-connection details.
-
-## Persona-scoped plugins
-
-The launcher includes a “人格插件” page where users can install a local
-`.tafeiplugin` package and enable it independently for each persona. The first
-version intentionally supports declarative prompt extensions only:
-
-- persistent prompt guidance;
-- optional keyword-triggered prompt guidance;
-- per-persona enable and disable state;
-- install-time package validation and a simple uninstall flow.
-
-Plugin packages cannot contain Python, executables, DLLs, scripts, shortcuts,
-temporary symlinks, encrypted archives, or traversal paths. Plugin content
-cannot execute code in the AstrBot process and is explicitly placed below core
-persona and safety instructions.
-
-See [docs/PERSONA_PLUGINS.md](docs/PERSONA_PLUGINS.md) for the package format.
-An installable example source directory is available at
-`examples/persona_plugins/weather_hint`.
-
-The plugin center also contains a native “梗百科” extension adapted from the
-MIT-licensed `thawline/dsh-memewiki` project. It provides local meme/slang
-lookup and injects at most one matched dictionary entry into the active
-persona. The 6792-entry SQLite dictionary is downloaded separately because its
-contents are attributed to `cnmeme.wiki`; it is not included in this public
-repository.
-
-See [docs/MEMEWIKI.md](docs/MEMEWIKI.md) for matching behavior, commands, data
-storage, updates, and licensing.
-
-## Layout
-
-- `astrbot/data/plugins/tafei_persona`: persona and speaking-rule injection
-- `astrbot/data/plugins/tafei_vision`: private-chat image description
-- `astrbot/data/plugins/tafei_sticker`: context-aware sticker replies
-- `astrbot/data/plugins/tafei_memory`: local, group-scoped conversation recall
-- `astrbot/data/plugins/tafei_voice`: persona-bound local or HTTP speech output
-- `astrbot/data/plugins/tafei_web`: opt-in search and public-link reading
-- `.bot_runtime`: service manager and watchdog
-- `launcher`: the Windows one-click launcher
-- `launcher/sticker_library.py`: visual sticker asset browser and tag editor
-- `persona_manager_core.py`: local Markdown persona import
-- `launcher/yaoguang_memory.py`: dark memory atlas and clue search UI
-- `persona_extensions`: shared validation, installation, and prompt loading
-- `memewiki_core`: local meme dictionary lookup and validated updates
-- `astrbot/data/plugins/tafei_memewiki`: native AstrBot dictionary integration
-- `docs/PERSONA_PLUGINS.md`: persona-plugin package format and security rules
-- `config/personas.json`: persona catalog and one-to-one voice bindings
-- `tafei_role.md`: human-readable consolidated persona reference
-- `docs/OPERATIONS.md`: safe operating and validation workflow
-- `docs/ARCHITECTURE.md`: current runtime and AuraBot evaluation notes
-- `scripts/build_offline_package.py`: split offline package builder
-- `.github/workflows`: CI and tagged release workflows
-
-## Important
-
-Live configuration, API keys, generated logs, downloaded runtimes, and account
-session data are intentionally excluded from Git. Use a dedicated QQ account
-and keep deployment-specific secrets outside the repository.
-
-## Safety
-
-Start or stop the local deployment through the desktop shortcuts
-`启动塔菲鱼` and `关闭塔菲鱼`. Do not run ad-hoc scripts from the downloads
-directory.
-
-Offline email notifications have been removed. If only AstrBot stops, the
-watchdog may restart AstrBot without touching NapCat/QQ. If the QQ bridge is
-disconnected, the watchdog only notifies and waits for one manual recovery.
-Startup APIs use a process lock, and legacy launch scripts are kept under
-`legacy_launchers` so only one public entry remains. NapCat/QQ bootstrap is
-counted per local day and warns after five attempts, while manual recovery
-remains available.
+如果塔菲鱼让你想做一个“不只是回文字”的 QQ AI 陪聊，欢迎点一个 **Star**，也欢迎把它改成属于你自己的角色客户端。
