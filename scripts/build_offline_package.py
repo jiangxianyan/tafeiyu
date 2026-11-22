@@ -69,7 +69,7 @@ def _should_skip(path: Path) -> bool:
         return True
     if (
         path.suffix.lower() in {".gif", ".jpeg", ".jpg", ".png", ".webp"}
-        and relative.parts[:2] != ("assets", "ui")
+        and relative.parts[:2] not in {("assets", "ui"), ("assets", "local")}
     ):
         return True
     if "__pycache__" in relative.parts:

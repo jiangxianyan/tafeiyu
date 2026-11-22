@@ -43,6 +43,7 @@ from setup_wizard import SetupWizard
 from sticker_library import StickerLibraryPage
 from ui_theme import (
     BACKGROUND_ASSET,
+    APP_ICON,
     BG,
     BG_DEEP,
     BORDER,
@@ -52,6 +53,7 @@ from ui_theme import (
     GREEN,
     INK,
     MUTED,
+    LOCAL_TITLE_ICON,
     ORANGE,
     PINK,
     PINK_SOFT,
@@ -121,9 +123,8 @@ class Launcher(tk.Tk):
                 self._ensure_monitor()
 
     def _build_ui(self) -> None:
-        icon = ROOT / "icons" / "start.ico"
         try:
-            self.iconbitmap(str(icon))
+            self.iconbitmap(str(APP_ICON))
         except Exception:
             pass
 
@@ -343,14 +344,39 @@ class Launcher(tk.Tk):
             highlightthickness=0,
         )
         icon.pack(side="left", padx=(9, 5), pady=5)
-        icon.create_oval(2, 2, 22, 22, fill=PINK_SOFT, outline=PINK, width=1)
-        icon.create_text(
-            12,
-            12,
-            text="T",
-            fill=PINK,
-            font=("Microsoft YaHei UI", 9, "bold"),
-        )
+        icon.create_oval(1, 1, 23, 23, fill=PINK_SOFT, outline=PINK, width=1)
+        self.titlebar_icon_photo = None
+        try:
+            if (
+                Image is not None
+                and ImageTk is not None
+                and LOCAL_TITLE_ICON.is_file()
+            ):
+                with Image.open(LOCAL_TITLE_ICON) as image:
+                    self.titlebar_icon_photo = ImageTk.PhotoImage(
+                        image.convert("RGBA").resize((22, 22))
+                    )
+                icon.create_image(
+                    12,
+                    12,
+                    image=self.titlebar_icon_photo,
+                )
+            else:
+                icon.create_text(
+                    12,
+                    12,
+                    text="T",
+                    fill=PINK,
+                    font=("Microsoft YaHei UI", 9, "bold"),
+                )
+        except Exception:
+            icon.create_text(
+                12,
+                12,
+                text="T",
+                fill=PINK,
+                font=("Microsoft YaHei UI", 9, "bold"),
+            )
         title_label = tk.Label(
             titlebar,
             text="塔菲鱼",

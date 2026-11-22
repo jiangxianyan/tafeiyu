@@ -7,6 +7,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BACKGROUND_ASSET = ROOT / "assets" / "ui" / "tafeiyu_aurora.png"
+LOCAL_APP_ICON = ROOT / "assets" / "local" / "tafeiyu.ico"
+LOCAL_TITLE_ICON = ROOT / "assets" / "local" / "tafeiyu_titlebar.png"
+APP_ICON = LOCAL_APP_ICON if LOCAL_APP_ICON.is_file() else ROOT / "icons" / "start.ico"
 
 BG = "#080C15"
 BG_DEEP = "#050810"

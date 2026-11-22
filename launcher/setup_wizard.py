@@ -21,6 +21,7 @@ from setup_core import (
     write_setup_complete,
 )
 from ui_theme import (
+    APP_ICON,
     BG,
     BG_DEEP,
     BORDER,
@@ -79,7 +80,7 @@ class SetupWizard(tk.Toplevel):
         self._show_page(0)
         self.grab_set()
         try:
-            self.iconbitmap(str(Path(__file__).resolve().parent.parent / "icons" / "start.ico"))
+            self.iconbitmap(str(APP_ICON))
         except Exception:
             pass
 

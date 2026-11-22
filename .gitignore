@@ -96,6 +96,11 @@ __pycache__/
 !/assets/
 !/assets/ui/
 !/assets/ui/*.png
+/assets/local/
+!/assets/local/
+!/assets/local/tafeiyu.ico
+!/assets/local/tafeiyu_icon.png
+!/assets/local/tafeiyu_titlebar.png
 
 # Local editor and operating-system files
 .DS_Store

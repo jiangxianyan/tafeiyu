@@ -14,6 +14,10 @@ The project source is distributed under the GNU Affero General Public License
 version 3.0. See `LICENSE`. This choice also keeps our distribution of the
 AGPL-licensed Group Chat Plus plugin and its local modifications compliant.
 
+The application icon under `assets/local/` was supplied by the project owner,
+who states it was created for this project. The owner is responsible for
+confirming redistribution rights before publishing release packages.
+
 ## Personality attribution
 
 Part of the personality and speaking-style guidance in this project is adapted
