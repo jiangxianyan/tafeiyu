@@ -2,7 +2,7 @@ name: tafei_sticker
 display_name: 塔菲表情包
 desc: 普通回复补充表情、识别来图斗图，并为新增表情自动生成标签和使用备注
 help: /st 手动发、/st_duel 看斗图状态；管理员可用 /st_p、/st_duel_on、/st_duel_off、/st_duel_p
-version: 1.6.0
+version: 1.6.1
 author: local
 repo: ""
 astrbot_version: ">=4.11.0"

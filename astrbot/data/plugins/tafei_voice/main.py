@@ -59,6 +59,22 @@ def _load_json(path: str) -> dict:
         return {}
 
 
+def _unique_ids(values) -> list[str]:
+    result = []
+    seen = set()
+    if isinstance(values, (str, int)):
+        values = [values]
+    elif not isinstance(values, (list, tuple, set)):
+        values = []
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
+
+
 def _deployment_defaults() -> tuple[list[str], list[str]]:
     root = _project_root()
     deploy = _load_json(os.path.join(root, "deploy_state.json"))
@@ -71,13 +87,21 @@ def _deployment_defaults() -> tuple[list[str], list[str]]:
             "astrbot_plugin_group_chat_plus_config.json",
         )
     )
+    astrbot = _load_json(
+        os.path.join(root, "astrbot", "data", "cmd_config.json")
+    )
     groups = deploy.get("group_whitelist")
     if not isinstance(groups, list):
         groups = group.get("enabled_groups", [])
-    owner = str(deploy.get("admin_qq") or "").strip()
+    admin_ids = _unique_ids(astrbot.get("admins_id"))
     return (
-        [str(item) for item in groups if str(item).strip()],
-        [owner] if owner else [],
+        _unique_ids(groups),
+        _unique_ids(
+            [
+                deploy.get("admin_qq"),
+                *admin_ids,
+            ]
+        ),
     )
 
 
@@ -210,9 +234,9 @@ class TafeiVoice(star.Star):
         defaults["enabled_groups"] = [
             str(group) for group in defaults.get("enabled_groups", [])
         ]
-        defaults["owner_user_ids"] = [
-            str(user) for user in defaults.get("owner_user_ids", [])
-        ]
+        defaults["owner_user_ids"] = _unique_ids(
+            [*default_owners, defaults.get("owner_user_ids")]
+        )
         defaults["force_voice_keywords"] = [
             str(keyword)
             for keyword in defaults.get("force_voice_keywords", [])
@@ -291,9 +315,89 @@ class TafeiVoice(star.Star):
         return bool(groups) and group_id in groups
 
     def _is_owner_private_chat(self, event: AstrMessageEvent) -> bool:
-        return event.is_private_chat() and str(event.get_sender_id()) in self.config.get(
-            "owner_user_ids", []
-        )
+        if not event.is_private_chat():
+            return False
+        owners = set(self.config.get("owner_user_ids", []))
+        if not owners:
+            return False
+        candidates = [
+            event.get_sender_id(),
+            getattr(event, "get_session_id", lambda: "")(),
+        ]
+        message_obj = getattr(event, "message_obj", None)
+        sender = getattr(message_obj, "sender", None)
+        if sender is not None:
+            candidates.append(getattr(sender, "user_id", None))
+        values = {
+            str(value or "").strip()
+            for value in candidates
+            if str(value or "").strip()
+        }
+        for owner in owners:
+            for value in values:
+                if value == owner or re.search(
+                    rf"(?<!\d){re.escape(owner)}(?!\d)",
+                    value,
+                ):
+                    return True
+        return False
+
+    @staticmethod
+    def _gpt_cache_key(
+        *,
+        persona_id: str,
+        manifest: dict,
+        reference: dict,
+        style: str,
+        text: str,
+        manifest_path: str = "",
+        reference_path: str = "",
+    ) -> str:
+        def file_state(path: str):
+            if not path:
+                return None
+            absolute = os.path.abspath(path)
+            try:
+                return [
+                    absolute,
+                    os.path.getsize(absolute),
+                    os.path.getmtime(absolute),
+                ]
+            except OSError:
+                return [absolute]
+
+        model_states = []
+        for value in (
+            manifest.get("gpt_model"),
+            manifest.get("sovits_model"),
+        ):
+            if not value:
+                continue
+            path = str(value)
+            if not os.path.isabs(path):
+                path = os.path.join(_voice_root(), path)
+            model_states.append(file_state(path))
+        identity = {
+            "provider": "gpt_sovits",
+            "persona": persona_id,
+            "gpt_model": manifest.get("gpt_model"),
+            "sovits_model": manifest.get("sovits_model"),
+            "models": model_states,
+            "manifest": file_state(manifest_path),
+            "reference_id": reference.get("id"),
+            "reference_file": reference.get("file"),
+            "reference_text": reference.get("text"),
+            "reference_audio": file_state(reference_path),
+            "style": style,
+            "text": text,
+        }
+        return hashlib.sha256(
+            json.dumps(
+                identity,
+                ensure_ascii=False,
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
 
     def _is_voice_requested(self, text: str) -> bool:
         normalized = re.sub(r"\s+", "", text or "")
@@ -387,9 +491,15 @@ class TafeiVoice(star.Star):
 
         base_dir = os.path.dirname(self.manifest_path)
         ref_audio = os.path.join(base_dir, ref_entry["file"].replace("/", os.sep))
-        cache_key = hashlib.sha256(
-            f"{manifest.get('gpt_model')}|{style}|{text}".encode("utf-8")
-        ).hexdigest()
+        cache_key = self._gpt_cache_key(
+            persona_id=self.active_persona_id,
+            manifest=manifest,
+            reference=ref_entry,
+            style=style,
+            text=text,
+            manifest_path=self.manifest_path,
+            reference_path=ref_audio,
+        )
         output_path = os.path.join(self.cache_dir, f"{cache_key}.wav")
         if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
             return output_path
@@ -439,9 +549,12 @@ class TafeiVoice(star.Star):
             )
         if not response.headers.get("content-type", "").startswith("audio"):
             raise RuntimeError("TTS response is not audio")
+        audio = response.content
+        if len(audio) <= 44 or not audio.startswith(b"RIFF"):
+            raise RuntimeError("TTS response is not a valid WAV file")
         temp_path = output_path + ".tmp"
         with open(temp_path, "wb") as handle:
-            handle.write(response.content)
+            handle.write(audio)
         os.replace(temp_path, output_path)
         self._cleanup_cache()
         return output_path
@@ -611,6 +724,16 @@ class TafeiVoice(star.Star):
             else (
                 200 if owner_private else int(self.config.get("max_chars", 60))
             )
+        )
+        logger.debug(
+            "tafei_voice route: private=%s owner=%s force=%s chars=%s "
+            "limit=%s sender=%s",
+            event.is_private_chat(),
+            owner_private,
+            force_voice,
+            len(text),
+            max_chars,
+            event.get_sender_id(),
         )
         if not text or len(text) > max_chars:
             return

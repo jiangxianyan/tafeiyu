@@ -34,7 +34,11 @@ from ui_theme import (
     SURFACE_ALT,
     SURFACE_SOFT,
 )
-from ui_widgets import RoundedButton, apply_windows_dark_frame
+from ui_widgets import (
+    RoundedButton,
+    apply_windows_dark_frame,
+    apply_windows_window_icon,
+)
 
 DARK = INK
 
@@ -80,9 +84,16 @@ class SetupWizard(tk.Toplevel):
         self._show_page(0)
         self.grab_set()
         try:
-            self.iconbitmap(str(APP_ICON))
+            self.iconbitmap(default=str(APP_ICON))
         except Exception:
             pass
+        apply_windows_window_icon(self, APP_ICON)
+        self.after_idle(lambda: apply_windows_window_icon(self, APP_ICON))
+        self.bind(
+            "<Map>",
+            lambda _event: apply_windows_window_icon(self, APP_ICON),
+            add="+",
+        )
 
     def _build_ui(self) -> None:
         header = tk.Frame(self, bg=SURFACE_ALT, height=92)

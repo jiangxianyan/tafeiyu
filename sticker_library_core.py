@@ -99,7 +99,7 @@ def save_sticker_metadata(
     note: str,
 ) -> dict[str, Any]:
     path = STICKER_DIR / Path(filename).name
-    if not path.is_file():
+    if path.suffix.lower() not in IMAGE_EXTENSIONS or not path.is_file():
         raise ValueError("表情图片不存在")
     meta = load_meta()
     old = dict(meta.get(path.name) or {})
@@ -160,6 +160,8 @@ def import_sticker(source: str) -> Path:
 
 def remove_sticker(filename: str) -> None:
     safe_name = Path(filename).name
+    if Path(safe_name).suffix.lower() not in IMAGE_EXTENSIONS:
+        raise ValueError("只能删除表情图片")
     path = STICKER_DIR / safe_name
     if path.is_file():
         path.unlink()

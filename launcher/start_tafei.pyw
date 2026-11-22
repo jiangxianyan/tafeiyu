@@ -65,7 +65,13 @@ from ui_theme import (
     SURFACE_ALT,
     SURFACE_SOFT,
 )
-from ui_widgets import NavPill, RoundedButton, apply_windows_dark_frame
+from ui_widgets import (
+    NavPill,
+    RoundedButton,
+    apply_windows_dark_frame,
+    apply_windows_window_icon,
+    set_windows_app_user_model_id,
+)
 from voice_center import open_persona_voice_center
 from yaoguang_memory import open_memory_map
 
@@ -124,9 +130,16 @@ class Launcher(tk.Tk):
 
     def _build_ui(self) -> None:
         try:
-            self.iconbitmap(str(APP_ICON))
+            self.iconbitmap(default=str(APP_ICON))
         except Exception:
             pass
+        apply_windows_window_icon(self, APP_ICON)
+        self.after_idle(lambda: apply_windows_window_icon(self, APP_ICON))
+        self.bind(
+            "<Map>",
+            lambda _event: apply_windows_window_icon(self, APP_ICON),
+            add="+",
+        )
 
         self._build_titlebar()
 
@@ -1141,6 +1154,7 @@ class Launcher(tk.Tk):
 
 
 def main() -> None:
+    set_windows_app_user_model_id()
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except Exception:

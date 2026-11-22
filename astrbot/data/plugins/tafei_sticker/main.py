@@ -172,6 +172,15 @@ def _valid_image(body: bytes, ext: str) -> bool:
     return False
 
 
+def _remote_image_extension(body: bytes) -> str:
+    for extension in EXTS:
+        if _valid_image(body, extension):
+            return extension
+    # MIME headers are advisory and are frequently application/octet-stream
+    # for QQ media URLs. Never trust the header over the bytes themselves.
+    return ""
+
+
 class TafeiSticker(star.Star):
     """塔菲表情包：回复后按概率补一张，启动时同步一次塔菲号收藏。"""
 
@@ -399,6 +408,9 @@ class TafeiSticker(star.Star):
                 f"tafei_sticker: 自动标注失败 {os.path.basename(path)}: {error}"
             )
             return False
+        # The desktop client may have edited another sticker while the vision
+        # request was running. Reload before merging instead of overwriting it.
+        self._maybe_reload_meta()
         q_values = [
             int(item.get("q") or 0)
             for item in self.meta.values()
@@ -455,7 +467,8 @@ class TafeiSticker(star.Star):
         try:
             self._meta_mtime = os.path.getmtime(path)
             with io.open(path, encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
         except Exception:
             self._meta_mtime = 0
             return {}
@@ -561,8 +574,7 @@ class TafeiSticker(star.Star):
                     async with sess.get(
                         url, timeout=aiohttp.ClientTimeout(total=20)
                     ) as r:
-                        body = await r.read()
-                        ctype = r.headers.get("content-type", "")
+                        body = await r.content.read(MAX_STICKER_BYTES + 1)
                 except Exception as e:
                     logger.warning(f"tafei_sticker: 下载失败 {url} {e}")
                     continue
@@ -572,8 +584,8 @@ class TafeiSticker(star.Star):
                 if h in local:
                     keep[key] = os.path.basename(local[h])
                     continue
-                ext = ".png" if "png" in ctype else ".gif" if "gif" in ctype else ".jpg"
-                if not ctype.startswith("image/") or not _valid_image(body, ext):
+                ext = _remote_image_extension(body)
+                if not ext:
                     logger.warning(f"tafei_sticker: 忽略非图片响应 {url}")
                     continue
                 fname = f"fav_{key}{ext}"

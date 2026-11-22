@@ -7,6 +7,8 @@ import sys
 import tkinter as tk
 import tkinter.font as tkfont
 from collections.abc import Callable
+from ctypes import wintypes
+from pathlib import Path
 
 from ui_theme import (
     BG_DEEP,
@@ -20,6 +22,103 @@ from ui_theme import (
     SURFACE_ALT,
     SURFACE_SOFT,
 )
+
+
+def set_windows_app_user_model_id(
+    app_id: str = "com.tafeiyu.desktop",
+) -> None:
+    """Give the Python-hosted desktop client its own Windows taskbar identity."""
+
+    if sys.platform != "win32":
+        return
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            ctypes.c_wchar_p(app_id)
+        )
+    except Exception:
+        pass
+
+
+def apply_windows_window_icon(
+    window: tk.Misc,
+    icon_path: str | Path,
+) -> None:
+    """Use the ICO for both the title area and the Windows taskbar button."""
+
+    path = Path(icon_path)
+    if sys.platform != "win32" or not path.is_file():
+        return
+    try:
+        window.update_idletasks()
+        user32 = ctypes.windll.user32
+        user32.LoadImageW.argtypes = [
+            wintypes.HINSTANCE,
+            wintypes.LPCWSTR,
+            wintypes.UINT,
+            ctypes.c_int,
+            ctypes.c_int,
+            wintypes.UINT,
+        ]
+        user32.LoadImageW.restype = wintypes.HANDLE
+        user32.SendMessageW.argtypes = [
+            wintypes.HWND,
+            wintypes.UINT,
+            wintypes.WPARAM,
+            wintypes.LPARAM,
+        ]
+        user32.SendMessageW.restype = wintypes.LPARAM
+        get_class_icon = getattr(
+            user32,
+            "GetClassLongPtrW",
+            user32.GetClassLongW,
+        )
+        set_class_icon = getattr(
+            user32,
+            "SetClassLongPtrW",
+            user32.SetClassLongW,
+        )
+        get_class_icon.argtypes = [
+            wintypes.HWND,
+            ctypes.c_int,
+        ]
+        get_class_icon.restype = ctypes.c_ssize_t
+        set_class_icon.argtypes = [
+            wintypes.HWND,
+            ctypes.c_int,
+            ctypes.c_ssize_t,
+        ]
+        set_class_icon.restype = ctypes.c_ssize_t
+        hwnd = int(window.winfo_id())
+        parent = int(user32.GetParent(hwnd))
+        if parent:
+            hwnd = parent
+        load_from_file = 0x00000010
+        load_default_size = 0x00000040
+        hicon = user32.LoadImageW(
+            None,
+            str(path),
+            1,
+            0,
+            0,
+            load_from_file | load_default_size,
+        )
+        hicon_small = user32.LoadImageW(
+            None,
+            str(path),
+            1,
+            16,
+            16,
+            load_from_file,
+        )
+        if hicon:
+            user32.SendMessageW(hwnd, 0x0080, 1, hicon)
+            set_class_icon(hwnd, -14, int(hicon))
+        if hicon_small:
+            user32.SendMessageW(hwnd, 0x0080, 0, hicon_small)
+            set_class_icon(hwnd, -34, int(hicon_small))
+        window._tafeiyu_icon_handles = (hicon, hicon_small)
+    except Exception:
+        pass
 
 
 def _parent_bg(widget: tk.Misc, fallback: str = BG_DEEP) -> str:

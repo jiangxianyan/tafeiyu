@@ -14,8 +14,11 @@ previous persona's model path.
   the validated WAV from `/v1/jobs/{id}/audio`
 - Default auto probability: `0.15`
 - Default maximum spoken text: `60` Chinese characters
+- Owner private chat uses voice deterministically for replies up to 200
+  characters; the QQ admin/deployment IDs are merged into the owner list
 - Voice references: normal / cute / happy / annoyed / soft
 - Explicit voice requests such as "发语音" or "说一句" force a voice reply
+- Cached samples are isolated by persona, model, reference audio and style
 
 Admin commands:
 

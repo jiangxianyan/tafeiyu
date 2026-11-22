@@ -82,6 +82,38 @@ class FakeEvent:
         self.extra[key] = value
 
 
+class FakeProvider:
+    def __init__(self, meta_path: Path, payload: dict) -> None:
+        self.meta_path = meta_path
+        self.payload = payload
+
+    async def text_chat(self, **_kwargs):
+        self.meta_path.write_text(
+            json.dumps(self.payload, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return types.SimpleNamespace(
+            completion_text=json.dumps(
+                {
+                    "keywords": ["新表情"],
+                    "emotion": ["开心"],
+                    "intent": ["卖萌"],
+                    "tone": ["可爱"],
+                    "note": "轻松聊天时使用",
+                },
+                ensure_ascii=False,
+            )
+        )
+
+
+class FakeContext:
+    def __init__(self, provider) -> None:
+        self.provider = provider
+
+    def get_provider_by_id(self, _provider_id: str):
+        return self.provider
+
+
 @unittest.skipUnless(ASTRBOT_AVAILABLE, "AstrBot runtime is not installed")
 class StickerDuelTest(unittest.TestCase):
     def test_auto_tag_response_is_normalized(self) -> None:
@@ -106,6 +138,62 @@ class StickerDuelTest(unittest.TestCase):
             path = Path(temp_dir) / "shock.png"
             path.write_bytes(PNG_BYTES)
             self.assertTrue(STICKER._is_emoji_message(FakeEvent(str(path))))
+
+    def test_remote_image_format_uses_magic_bytes(self) -> None:
+        webp = b"RIFF" + b"\x00\x00\x00\x00" + b"WEBP" + (b"\0" * 1200)
+        self.assertEqual(
+            STICKER._remote_image_extension(webp),
+            ".webp",
+        )
+        self.assertEqual(
+            STICKER._remote_image_extension(PNG_BYTES),
+            ".png",
+        )
+        self.assertEqual(
+            STICKER._remote_image_extension(b"not an image"),
+            "",
+        )
+
+    def test_invalid_meta_file_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            (temp / "meta.json").write_text("[]", encoding="utf-8")
+            plugin = object.__new__(STICKER.TafeiSticker)
+            with patch.object(STICKER, "STICKER_DIR", str(temp)):
+                self.assertEqual(plugin._load_meta(), {})
+
+    def test_auto_tag_preserves_concurrent_client_edit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            target = temp / "new.png"
+            target.write_bytes(PNG_BYTES)
+            meta_path = temp / "meta.json"
+            initial = {
+                "new.png": {"q": 1},
+                "edited.png": {"q": 9, "kw": ["旧标签"]},
+            }
+            meta_path.write_text(
+                json.dumps(initial, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            concurrent = {
+                "new.png": {"q": 1},
+                "edited.png": {"q": 9, "kw": ["用户刚改的标签"]},
+            }
+            provider = FakeProvider(meta_path, concurrent)
+            plugin = object.__new__(STICKER.TafeiSticker)
+            plugin.context = FakeContext(provider)
+            plugin.cfg = {
+                "auto_tag_provider_id": "test/vision",
+            }
+            with patch.object(STICKER, "STICKER_DIR", str(temp)):
+                plugin.meta = plugin._load_meta()
+                added = asyncio.run(plugin._tag_sticker(str(target)))
+                saved = json.loads(meta_path.read_text(encoding="utf-8"))
+
+            self.assertTrue(added)
+            self.assertEqual(saved["edited.png"]["kw"], ["用户刚改的标签"])
+            self.assertIn("新表情", saved["new.png"]["kw"])
 
     def test_duel_replaces_text_and_stops_after_three_rounds(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
