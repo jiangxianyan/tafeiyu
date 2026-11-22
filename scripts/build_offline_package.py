@@ -283,6 +283,18 @@ def build(args) -> Path:
             "5. 声线权重和参考音频需用户自行导入，公开包不包含角色声线。\n",
             encoding="utf-8",
         )
+        (stage / "安装塔菲鱼.bat").write_text(
+            "@echo off\r\n"
+            "chcp 936 >nul\r\n"
+            "cd /d \"%~dp0\"\r\n"
+            "if exist \"%~dp0runtime\\python-installer.exe\" (\r\n"
+            "  start /wait \"\" \"%~dp0runtime\\python-installer.exe\" "
+            "/quiet InstallAllUsers=0 PrependPath=0 Include_launcher=1 "
+            "Include_test=0\r\n"
+            ")\r\n"
+            "call \"%~dp0启动塔菲.bat\"\r\n",
+            encoding="gbk",
+        )
         archives = _zip_directory(stage, output)
     checksums = {
         archive.name: {

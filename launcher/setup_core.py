@@ -30,13 +30,6 @@ VOICE_CONFIG = (
     / "tafei_voice"
     / "config.json"
 )
-VOICE_ENGINE = ROOT / "voice" / "GPT-SoVITS-run"
-DEFAULT_TTS_CONFIG = (
-    VOICE_ENGINE / "GPT_SoVITS" / "configs" / "tts_infer.yaml"
-)
-DEFAULT_VOICE_MANIFEST = (
-    VOICE_ENGINE / "voices" / "tafei_v2" / "manifest.json"
-)
 
 MODEL_PRESETS = {
     "DeepSeek": {
@@ -58,6 +51,22 @@ MODEL_PRESETS = {
         "model": "",
     },
 }
+
+
+def _voice_engine() -> Path:
+    candidates = [
+        ROOT / "voice" / "GPT-SoVITS-run",
+        ROOT / "runtime" / "GPT-SoVITS-run",
+    ]
+    return next((path for path in candidates if path.is_dir()), candidates[0])
+
+
+def _default_tts_config() -> Path:
+    return _voice_engine() / "GPT_SoVITS" / "configs" / "tts_infer.yaml"
+
+
+def _default_voice_manifest() -> Path:
+    return _voice_engine() / "voices" / "tafei_v2" / "manifest.json"
 
 
 def _vision_provider_id(source_id: str) -> str:
@@ -353,6 +362,8 @@ def _find_astrbot_exe(current: str = "") -> str:
         candidates.append(Path(command))
     candidates.extend(
         [
+            ROOT / "runtime" / "astrbot-tool" / "Scripts" / "astrbot.exe",
+            ROOT / "runtime" / "astrbot-tool" / "astrbot.exe",
             Path.home() / ".local" / "bin" / "astrbot.exe",
             Path(os.environ.get("APPDATA", ""))
             / "uv"
@@ -370,12 +381,16 @@ def _find_astrbot_exe(current: str = "") -> str:
 
 def _find_napcat_paths(deploy: dict) -> tuple[str, str]:
     current_root = _existing_path(deploy.get("napcat_root"))
+    bundled_root = ROOT / "runtime" / "napcat-shell"
     root = current_root or (ROOT / "napcat")
+    if not root.exists() and bundled_root.exists():
+        root = bundled_root
     candidates = []
     current_shell = _existing_path(deploy.get("napcat_shell_dir"))
     if current_shell is not None:
         candidates.append(current_shell)
     if root.is_dir():
+        candidates.append(root)
         candidates.extend(root.glob("NapCat*.Shell"))
 
     def modified(path: Path) -> float:
@@ -488,8 +503,8 @@ def apply_qq_and_groups(
 
 def existing_voice_settings() -> dict:
     config = _load_json(VOICE_CONFIG)
-    manifest = Path(config.get("manifest_path") or DEFAULT_VOICE_MANIFEST)
-    tts_config = Path(config.get("tts_config_path") or DEFAULT_TTS_CONFIG)
+    manifest = Path(config.get("manifest_path") or _default_voice_manifest())
+    tts_config = Path(config.get("tts_config_path") or _default_tts_config())
     configured = manifest.is_file() and tts_config.is_file()
     return {
         "enabled": bool(config.get("enabled", configured)) and configured,
@@ -531,7 +546,7 @@ def import_voice_pack(
     if version not in {"v1", "v2", "v2Pro", "v2ProPlus", "v3", "v4"}:
         raise ValueError("不支持的 GPT-SoVITS 版本")
 
-    base_yaml = VOICE_ENGINE / "GPT_SoVITS" / "configs" / "tts_infer.yaml"
+    base_yaml = _voice_engine() / "GPT_SoVITS" / "configs" / "tts_infer.yaml"
     if not base_yaml.is_file():
         raise RuntimeError("未找到 GPT-SoVITS 引擎配置")
     with base_yaml.open(encoding="utf-8") as handle:

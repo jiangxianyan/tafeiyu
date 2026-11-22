@@ -39,9 +39,15 @@ def _project_root() -> str:
 
 
 def _voice_root() -> str:
-    return os.environ.get("TAFEI_VOICE_ROOT") or os.path.join(
-        _project_root(), "voice", "GPT-SoVITS-run"
-    )
+    configured = os.environ.get("TAFEI_VOICE_ROOT")
+    if configured:
+        return configured
+    root = _project_root()
+    candidates = [
+        os.path.join(root, "voice", "GPT-SoVITS-run"),
+        os.path.join(root, "runtime", "GPT-SoVITS-run"),
+    ]
+    return next((path for path in candidates if os.path.isdir(path)), candidates[0])
 
 
 def _load_json(path: str) -> dict:

@@ -36,6 +36,14 @@ NEW_CONSOLE = 0x00000010
 Progress = Callable[[str, object], None]
 
 
+def _voice_engine_root() -> Path:
+    candidates = [
+        ROOT / "voice" / "GPT-SoVITS-run",
+        ROOT / "runtime" / "GPT-SoVITS-run",
+    ]
+    return next((path for path in candidates if path.is_dir()), candidates[0])
+
+
 def _port_open(port: int, timeout: float = 0.5) -> bool:
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=timeout):
@@ -258,7 +266,7 @@ def _start_napcat(config: dict) -> None:
 
 
 def _start_tts() -> None:
-    voice_root = ROOT / "voice" / "GPT-SoVITS-run"
+    voice_root = _voice_engine_root()
     python_exe = voice_root / ".venv" / "Scripts" / "python.exe"
     api_script = voice_root / "api_v2.py"
     runtime = active_voice_runtime()
