@@ -27,6 +27,49 @@ def write_json(path: Path, value) -> None:
 
 
 class SetupCoreTest(unittest.TestCase):
+    def test_existing_complete_install_skips_wizard(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            config_path = temp / "cmd_config.json"
+            deploy_path = temp / "deploy_state.json"
+            setup_marker = temp / ".setup_complete"
+            force_marker = temp / ".setup_required"
+            write_json(
+                config_path,
+                {
+                    "provider_sources": [
+                        {"id": "deepseek", "key": ["test-key"]}
+                    ],
+                    "provider": [
+                        {
+                            "id": "deepseek/test",
+                            "enable": True,
+                            "provider_source_id": "deepseek",
+                        }
+                    ],
+                },
+            )
+            write_json(
+                deploy_path,
+                {
+                    "qq": "123456",
+                    "admin_qq": "987654",
+                    "astrbot_exe": str(temp / "astrbot.exe"),
+                    "napcat_shell_dir": str(temp / "napcat"),
+                },
+            )
+            with (
+                patch.object(setup_core, "ASTRBOT_CONFIG", config_path),
+                patch.object(setup_core, "DEPLOY_STATE", deploy_path),
+                patch.object(setup_core, "SETUP_MARKER", setup_marker),
+                patch.object(setup_core, "FORCE_SETUP_MARKER", force_marker),
+            ):
+                self.assertFalse(setup_core.setup_required())
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                config["provider_sources"][0]["key"] = []
+                write_json(config_path, config)
+                self.assertTrue(setup_core.setup_required())
+
     def test_model_setup_creates_text_and_vision_providers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "cmd_config.json"

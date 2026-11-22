@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SETUP_MARKER = ROOT / ".setup_complete"
+FORCE_SETUP_MARKER = ROOT / ".setup_required"
 ASTRBOT_CONFIG = ROOT / "astrbot" / "data" / "cmd_config.json"
 DEPLOY_STATE = ROOT / "deploy_state.json"
 GROUP_CONFIG = (
@@ -111,7 +112,33 @@ def validate_user_id(value: str, label: str) -> str:
 
 
 def setup_required() -> bool:
-    return not SETUP_MARKER.is_file()
+    if FORCE_SETUP_MARKER.is_file():
+        return True
+    if SETUP_MARKER.is_file():
+        return False
+    deploy = _load_json(DEPLOY_STATE)
+    config = _load_json(ASTRBOT_CONFIG)
+    sources = {
+        str(item.get("id")): item
+        for item in config.get("provider_sources", [])
+        if isinstance(item, dict)
+    }
+    configured_provider = any(
+        item.get("enable", True)
+        and source_id in sources
+        and bool(sources[source_id].get("key"))
+        for item in config.get("provider", [])
+        if isinstance(item, dict)
+        for source_id in [str(item.get("provider_source_id") or "")]
+    )
+    complete = bool(
+        str(deploy.get("qq") or "").strip()
+        and str(deploy.get("admin_qq") or "").strip()
+        and str(deploy.get("astrbot_exe") or "").strip()
+        and str(deploy.get("napcat_shell_dir") or "").strip()
+        and configured_provider
+    )
+    return not complete
 
 
 def current_model_settings() -> dict:
@@ -659,8 +686,11 @@ def write_setup_complete(
         "voice": voice,
     }
     _save_json(SETUP_MARKER, marker)
+    FORCE_SETUP_MARKER.unlink(missing_ok=True)
 
 
 def reset_setup_for_test(root: Path | None = None) -> None:
     marker = root / ".setup_complete" if root else SETUP_MARKER
     marker.unlink(missing_ok=True)
+    force_marker = root / ".setup_required" if root else FORCE_SETUP_MARKER
+    force_marker.write_text("reset\n", encoding="utf-8")
