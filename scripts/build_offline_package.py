@@ -67,7 +67,10 @@ def _should_skip(path: Path) -> bool:
         return True
     if path.name in EXCLUDED_NAMES or path.suffix.lower() in EXCLUDED_SUFFIXES:
         return True
-    if path.suffix.lower() in {".gif", ".jpeg", ".jpg", ".png", ".webp"}:
+    if (
+        path.suffix.lower() in {".gif", ".jpeg", ".jpg", ".png", ".webp"}
+        and relative.parts[:2] != ("assets", "ui")
+    ):
         return True
     if "__pycache__" in relative.parts:
         return True

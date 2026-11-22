@@ -20,14 +20,21 @@ from setup_core import (
     reset_setup_for_test,
     write_setup_complete,
 )
+from ui_theme import (
+    BG,
+    BG_DEEP,
+    BORDER,
+    CARD,
+    GREEN,
+    INK,
+    MUTED,
+    ORANGE,
+    PINK,
+    SURFACE_ALT,
+    SURFACE_SOFT,
+)
 
-BG = "#fff7fa"
-CARD = "#ffffff"
-PINK = "#ed6f9f"
-DARK = "#352a30"
-MUTED = "#786a72"
-GREEN = "#2f9e6f"
-ORANGE = "#d88635"
+DARK = INK
 
 
 class SetupWizard(tk.Toplevel):
@@ -75,22 +82,22 @@ class SetupWizard(tk.Toplevel):
             pass
 
     def _build_ui(self) -> None:
-        header = tk.Frame(self, bg=PINK, height=92)
+        header = tk.Frame(self, bg=SURFACE_ALT, height=92)
         header.pack(fill="x")
         header.pack_propagate(False)
         tk.Label(
             header,
             text="塔菲鱼配置向导",
             font=("Microsoft YaHei UI", 21, "bold"),
-            bg=PINK,
-            fg="white",
+            bg=SURFACE_ALT,
+            fg=INK,
         ).pack(anchor="w", padx=26, pady=(14, 0))
         tk.Label(
             header,
             text="完成模型、QQ、语音与群聊设置。默认人格为 tafei，完成后可在客户端切换。",
             font=("Microsoft YaHei UI", 9),
-            bg=PINK,
-            fg="#fff0f6",
+            bg=SURFACE_ALT,
+            fg=MUTED,
         ).pack(anchor="w", padx=27)
 
         body = tk.Frame(self, bg=BG)
@@ -119,7 +126,7 @@ class SetupWizard(tk.Toplevel):
             body,
             bg=CARD,
             highlightthickness=1,
-            highlightbackground="#f1dbe4",
+            highlightbackground=BORDER,
         )
         card.grid(row=1, column=0, sticky="nsew")
         self.page_host = tk.Frame(card, bg=CARD)
@@ -139,19 +146,61 @@ class SetupWizard(tk.Toplevel):
 
         style = ttk.Style(self)
         style.theme_use("clam")
-        style.configure("TButton", font=("Microsoft YaHei UI", 10))
+        style.configure(
+            "TButton",
+            font=("Microsoft YaHei UI", 10),
+            background=SURFACE_ALT,
+            foreground=INK,
+            bordercolor=BORDER,
+            lightcolor=SURFACE_ALT,
+            darkcolor=SURFACE_ALT,
+        )
+        style.map(
+            "TButton",
+            background=[("active", SURFACE_SOFT), ("pressed", PINK)],
+            foreground=[("active", INK)],
+        )
+        style.configure(
+            "TEntry",
+            fieldbackground=SURFACE_SOFT,
+            foreground=INK,
+            insertcolor=INK,
+            bordercolor=BORDER,
+            lightcolor=BORDER,
+            darkcolor=BORDER,
+        )
+        style.configure(
+            "Setup.TCombobox",
+            fieldbackground=SURFACE_ALT,
+            background=SURFACE_ALT,
+            foreground=INK,
+            arrowcolor=MUTED,
+            bordercolor=BORDER,
+            lightcolor=BORDER,
+            darkcolor=BORDER,
+        )
+        style.map(
+            "Setup.TCombobox",
+            fieldbackground=[("readonly", SURFACE_ALT), ("active", SURFACE_ALT)],
+            foreground=[("readonly", INK), ("active", INK)],
+            selectbackground=[("readonly", SURFACE_ALT)],
+            selectforeground=[("readonly", INK)],
+        )
         style.configure(
             "Accent.TButton",
             font=("Microsoft YaHei UI", 10, "bold"),
             background=PINK,
-            foreground="white",
+            foreground=BG_DEEP,
+            bordercolor=PINK,
+            lightcolor=PINK,
+            darkcolor=PINK,
         )
         style.map(
             "Accent.TButton",
             background=[
-                ("disabled", "#d8c8d0"),
-                ("pressed", "#cc4f82"),
-                ("active", "#dc5d91"),
+                ("disabled", SURFACE_SOFT),
+                ("pressed", "#FFA2CA"),
+                ("active", "#FFA2CA"),
                 ("!disabled", PINK),
             ],
         )
@@ -250,6 +299,7 @@ class SetupWizard(tk.Toplevel):
             values=list(MODEL_PRESETS),
             state="readonly",
             width=30,
+            style="Setup.TCombobox",
         )
         preset.grid(row=0, column=1, sticky="w", padx=(18, 0), pady=5)
         preset.bind("<<ComboboxSelected>>", self._preset_selected)
@@ -392,6 +442,7 @@ class SetupWizard(tk.Toplevel):
             values=["v1", "v2", "v2Pro", "v2ProPlus", "v3", "v4"],
             state="readonly",
             width=20,
+            style="Setup.TCombobox",
         )
         version.grid(row=4, column=1, sticky="w", padx=(18, 0), pady=5)
         self.voice_widgets.append(version)
@@ -480,7 +531,7 @@ class SetupWizard(tk.Toplevel):
         self.summary = tk.Label(
             page,
             text="",
-            bg="#fbf6f8",
+            bg=SURFACE_SOFT,
             fg=DARK,
             justify="left",
             anchor="nw",

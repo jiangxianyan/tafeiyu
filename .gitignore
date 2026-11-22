@@ -93,6 +93,9 @@ __pycache__/
 *.jpg
 *.jpeg
 *.gif
+!/assets/
+!/assets/ui/
+!/assets/ui/*.png
 
 # Local editor and operating-system files
 .DS_Store

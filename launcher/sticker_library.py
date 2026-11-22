@@ -18,6 +18,20 @@ from sticker_library_core import (  # noqa: E402
     remove_sticker,
     save_sticker_metadata,
 )
+from ui_theme import (  # noqa: E402
+    BG_DEEP,
+    BORDER,
+    CARD,
+    CYAN,
+    GREEN,
+    INK,
+    MUTED,
+    ORANGE,
+    PINK,
+    RED,
+    SURFACE_ALT,
+    SURFACE_SOFT,
+)
 
 try:
     from PIL import Image, ImageTk
@@ -25,18 +39,11 @@ except ImportError:
     Image = None
     ImageTk = None
 
-PAGE_BG = "#f3f5f8"
-SURFACE = "#ffffff"
-SURFACE_SOFT = "#f8f9fb"
-BORDER = "#dfe3e9"
-INK = "#253043"
-MUTED = "#667085"
-PINK = "#df6d98"
-PINK_SOFT = "#fbeef4"
-GREEN = "#27825f"
-GREEN_SOFT = "#eaf7f1"
-ORANGE = "#b86b18"
-ORANGE_SOFT = "#fff4e6"
+PAGE_BG = BG_DEEP
+SURFACE = CARD
+PINK_SOFT = "#3A2032"
+GREEN_SOFT = "#16362F"
+ORANGE_SOFT = "#3A2B1B"
 CARD_SIZE = 142
 
 
@@ -58,6 +65,24 @@ class StickerLibraryPage(tk.Frame):
         self.refresh()
 
     def _build(self) -> None:
+        style = ttk.Style(self)
+        style.configure(
+            "Sticker.TCombobox",
+            fieldbackground=SURFACE_ALT,
+            background=SURFACE_ALT,
+            foreground=INK,
+            arrowcolor=MUTED,
+            bordercolor=BORDER,
+            lightcolor=BORDER,
+            darkcolor=BORDER,
+        )
+        style.map(
+            "Sticker.TCombobox",
+            fieldbackground=[("readonly", SURFACE_ALT), ("active", SURFACE_ALT)],
+            foreground=[("readonly", INK), ("active", INK)],
+            selectbackground=[("readonly", SURFACE_ALT)],
+            selectforeground=[("readonly", INK)],
+        )
         toolbar = tk.Frame(self, bg=PAGE_BG)
         toolbar.pack(fill="x", pady=(0, 12))
         search_host = tk.Frame(
@@ -88,6 +113,7 @@ class StickerLibraryPage(tk.Frame):
             state="readonly",
             width=12,
             font=("Microsoft YaHei UI", 9),
+            style="Sticker.TCombobox",
         )
         status.pack(side="left", padx=(0, 10))
         status.bind("<<ComboboxSelected>>", lambda _event: self._render_gallery())

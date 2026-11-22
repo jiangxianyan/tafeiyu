@@ -7,6 +7,11 @@ a Windows control center with a left navigation rail for runtime status,
 one-click persona switching, voice bindings, the visual memory atlas, sticker
 asset management, persona plugins, setup, and diagnostics.
 
+The client uses an original dark aurora visual theme, with generated artwork
+stored in `assets/ui/` and reproducible through `scripts/generate_ui_art.py`.
+See [docs/UI_DESIGN.md](docs/UI_DESIGN.md) for the reference direction and
+asset licensing notes.
+
 ## Unofficial fan project and voice assets
 
 This is an unofficial fan-made companion project. It is not affiliated with,

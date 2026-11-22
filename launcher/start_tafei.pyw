@@ -11,6 +11,12 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
+try:
+    from PIL import Image, ImageTk
+except ImportError:
+    Image = None
+    ImageTk = None
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -35,19 +41,32 @@ from persona_visuals_center import open_persona_visuals_center
 from setup_core import setup_required
 from setup_wizard import SetupWizard
 from sticker_library import StickerLibraryPage
+from ui_theme import (
+    BACKGROUND_ASSET,
+    BG,
+    BG_DEEP,
+    BORDER,
+    CARD,
+    CYAN,
+    GOLD,
+    GREEN,
+    INK,
+    MUTED,
+    ORANGE,
+    PINK,
+    PINK_SOFT,
+    RED,
+    SIDEBAR,
+    SOFT,
+    SUBTLE,
+    SURFACE,
+    SURFACE_ALT,
+    SURFACE_SOFT,
+)
 from voice_center import open_persona_voice_center
 from yaoguang_memory import open_memory_map
 
-BG = "#fff7fa"
-CARD = "#ffffff"
-PINK = "#ed6f9f"
-DARK = "#352a30"
-INK = DARK
-MUTED = "#786a72"
-GREEN = "#2f9e6f"
-ORANGE = "#d88635"
-RED = "#c94d5f"
-SOFT = "#fbf6f8"
+DARK = INK
 
 
 class Launcher(tk.Tk):
@@ -56,7 +75,7 @@ class Launcher(tk.Tk):
         self.title("塔菲鱼")
         self.geometry("1120x740")
         self.minsize(980, 650)
-        self.configure(bg=BG)
+        self.configure(bg=BG_DEEP)
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.stop_event = threading.Event()
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
@@ -98,39 +117,101 @@ class Launcher(tk.Tk):
 
         style = ttk.Style(self)
         style.theme_use("clam")
-        style.configure("TButton", font=("Microsoft YaHei UI", 10))
-        style.configure("Accent.TButton", background=PINK, foreground="white")
-        style.map("Accent.TButton", background=[("active", "#dc5d91")])
+        style.configure(
+            "TButton",
+            font=("Microsoft YaHei UI", 10),
+            background=SURFACE_ALT,
+            foreground=INK,
+            bordercolor=BORDER,
+            lightcolor=SURFACE_ALT,
+            darkcolor=SURFACE_ALT,
+            padding=(10, 6),
+        )
+        style.map(
+            "TButton",
+            background=[("active", SURFACE), ("pressed", PINK_SOFT)],
+            foreground=[("active", INK), ("pressed", PINK)],
+        )
+        style.configure(
+            "Accent.TButton",
+            background=PINK,
+            foreground="#160D16",
+            bordercolor=PINK,
+            lightcolor=PINK,
+            darkcolor=PINK,
+            font=("Microsoft YaHei UI", 10, "bold"),
+        )
+        style.map(
+            "Accent.TButton",
+            background=[("active", "#FFA2CA"), ("pressed", PINK)],
+            foreground=[("active", "#160D16")],
+        )
+        style.configure(
+            "TEntry",
+            fieldbackground=SURFACE_SOFT,
+            foreground=INK,
+            insertcolor=INK,
+            bordercolor=BORDER,
+            lightcolor=BORDER,
+            darkcolor=BORDER,
+        )
+        style.configure(
+            "TCombobox",
+            fieldbackground=SURFACE_ALT,
+            background=SURFACE_ALT,
+            foreground=INK,
+            arrowcolor=MUTED,
+            bordercolor=BORDER,
+        )
 
-        shell = tk.Frame(self, bg=BG)
+        shell = tk.Frame(self, bg=BG_DEEP)
         shell.pack(fill="both", expand=True)
 
-        sidebar = tk.Frame(shell, bg="#f8e8ef", width=222)
+        sidebar = tk.Frame(shell, bg=SIDEBAR, width=236)
         sidebar.pack(side="left", fill="y")
         sidebar.pack_propagate(False)
-        tk.Label(
+        brand = tk.Canvas(
             sidebar,
+            height=176,
+            bg=SIDEBAR,
+            highlightthickness=0,
+        )
+        brand.pack(fill="x")
+        try:
+            if Image is not None and ImageTk is not None and BACKGROUND_ASSET.is_file():
+                with Image.open(BACKGROUND_ASSET) as image:
+                    crop = image.crop((380, 0, 1160, 620)).resize((330, 255))
+                    self.brand_photo = ImageTk.PhotoImage(crop.convert("RGB"))
+                brand.create_image(-42, -32, anchor="nw", image=self.brand_photo)
+        except Exception:
+            self.brand_photo = None
+        brand.create_rectangle(0, 0, 236, 176, fill=SIDEBAR, stipple="gray50", outline="")
+        brand.create_text(
+            22,
+            62,
             text="塔菲鱼",
-            bg="#f8e8ef",
-            fg=DARK,
-            font=("Microsoft YaHei UI", 20, "bold"),
-        ).pack(anchor="w", padx=22, pady=(24, 0))
-        tk.Label(
-            sidebar,
-            text="tafeiyu",
-            bg="#f8e8ef",
-            fg=MUTED,
-            font=("Microsoft YaHei UI", 9),
-        ).pack(anchor="w", padx=23, pady=(0, 22))
+            anchor="w",
+            fill=INK,
+            font=("Microsoft YaHei UI", 23, "bold"),
+        )
+        brand.create_text(
+            23,
+            94,
+            text="TAFEIYU · LOCAL COMPANION",
+            anchor="w",
+            fill=CYAN,
+            font=("Microsoft YaHei UI", 7, "bold"),
+        )
+        brand.create_line(22, 118, 72, 118, fill=PINK, width=2)
 
         nav_definition = [
-            ("home", "运行概览"),
-            ("personas", "人格切换"),
-            ("voice", "声音中心"),
-            ("stickers", "表情包库"),
-            ("memory", "记忆星图"),
-            ("plugins", "人格插件"),
-            ("settings", "设置与诊断"),
+            ("home", "◈  运行概览"),
+            ("personas", "◇  人格切换"),
+            ("voice", "◉  声音中心"),
+            ("stickers", "▦  表情包库"),
+            ("memory", "✦  记忆星图"),
+            ("plugins", "⬡  人格插件"),
+            ("settings", "⚙  设置与诊断"),
         ]
         for key, label in nav_definition:
             button = tk.Button(
@@ -140,47 +221,82 @@ class Launcher(tk.Tk):
                 anchor="w",
                 relief="flat",
                 bd=0,
-                padx=22,
-                pady=10,
-                bg="#f8e8ef",
-                fg=DARK,
-                activebackground="#f1d8e3",
-                activeforeground=DARK,
+                padx=18,
+                pady=11,
+                bg=SIDEBAR,
+                fg=MUTED,
+                activebackground=PINK_SOFT,
+                activeforeground=INK,
                 cursor="hand2",
                 font=("Microsoft YaHei UI", 10),
             )
-            button.pack(fill="x", padx=10, pady=2)
+            button.pack(fill="x", padx=12, pady=3)
             self.nav_buttons[key] = button
 
+        footer = tk.Frame(sidebar, bg=SIDEBAR)
+        footer.pack(side="bottom", fill="x", padx=22, pady=18)
+        status_dot = tk.Canvas(
+            footer,
+            width=8,
+            height=8,
+            bg=SIDEBAR,
+            highlightthickness=0,
+        )
+        status_dot.pack(side="left")
+        status_dot.create_oval(2, 2, 6, 6, fill=GREEN, outline="")
         tk.Label(
-            sidebar,
+            footer,
             text="本地运行 · 数据不上传",
-            bg="#f8e8ef",
-            fg=MUTED,
+            bg=SIDEBAR,
+            fg=SUBTLE,
             font=("Microsoft YaHei UI", 8),
-        ).pack(side="bottom", anchor="w", padx=22, pady=18)
+        ).pack(side="left", padx=(5, 0))
 
-        main = tk.Frame(shell, bg=BG)
+        main = tk.Frame(shell, bg=BG_DEEP)
         main.pack(side="left", fill="both", expand=True)
-        header = tk.Frame(main, bg=BG, height=82)
-        header.pack(fill="x", padx=24)
-        header.pack_propagate(False)
-        tk.Label(
-            header,
-            textvariable=self.page_title,
-            bg=BG,
-            fg=DARK,
-            font=("Microsoft YaHei UI", 20, "bold"),
-        ).pack(anchor="w", pady=(17, 0))
-        tk.Label(
-            header,
-            textvariable=self.page_subtitle,
-            bg=BG,
-            fg=MUTED,
+        header = tk.Canvas(
+            main,
+            height=116,
+            bg=BG_DEEP,
+            highlightthickness=0,
+        )
+        self.header_canvas = header
+        header.pack(fill="x", padx=20)
+        try:
+            if Image is not None and ImageTk is not None and BACKGROUND_ASSET.is_file():
+                with Image.open(BACKGROUND_ASSET) as image:
+                    crop = image.crop((280, 0, 1600, 520)).resize((960, 312))
+                    self.header_photo = ImageTk.PhotoImage(crop.convert("RGB"))
+                header.create_image(30, -150, anchor="nw", image=self.header_photo)
+        except Exception:
+            self.header_photo = None
+        header.create_rectangle(0, 0, 1200, 116, fill=BG_DEEP, stipple="gray50", outline="")
+        self.header_title_item = header.create_text(
+            8,
+            35,
+            text=self.page_title.get(),
+            anchor="w",
+            fill=INK,
+            font=("Microsoft YaHei UI", 24, "bold"),
+        )
+        self.header_subtitle_item = header.create_text(
+            9,
+            67,
+            text=self.page_subtitle.get(),
+            anchor="w",
+            fill=MUTED,
             font=("Microsoft YaHei UI", 9),
-        ).pack(anchor="w", pady=(2, 0))
+        )
+        header.create_text(
+            9,
+            94,
+            text="TAFEIYU DESKTOP",
+            anchor="w",
+            fill=CYAN,
+            font=("Microsoft YaHei UI", 7, "bold"),
+        )
 
-        self.page_host = tk.Frame(main, bg=BG)
+        self.page_host = tk.Frame(main, bg=BG_DEEP)
         self.page_host.pack(fill="both", expand=True, padx=24, pady=(0, 20))
         self.pages = {
             "home": self._build_home_page(),
@@ -224,11 +340,20 @@ class Launcher(tk.Tk):
         }
         self.page_title.set(titles[key][0])
         self.page_subtitle.set(titles[key][1])
+        self._update_header_text()
         for name, button in self.nav_buttons.items():
             if name == key:
-                button.configure(bg=CARD, fg=PINK, font=("Microsoft YaHei UI", 10, "bold"))
+                button.configure(
+                    bg=PINK_SOFT,
+                    fg=PINK,
+                    font=("Microsoft YaHei UI", 10, "bold"),
+                )
             else:
-                button.configure(bg="#f8e8ef", fg=DARK, font=("Microsoft YaHei UI", 10))
+                button.configure(
+                    bg=SIDEBAR,
+                    fg=MUTED,
+                    font=("Microsoft YaHei UI", 10),
+                )
         if key == "personas":
             self._refresh_personas_page()
         elif key == "voice":
@@ -236,13 +361,23 @@ class Launcher(tk.Tk):
         elif key == "stickers":
             self.sticker_page.refresh()
 
+    def _update_header_text(self) -> None:
+        canvas = getattr(self, "header_canvas", None)
+        if canvas is None:
+            return
+        canvas.itemconfigure(self.header_title_item, text=self.page_title.get())
+        canvas.itemconfigure(
+            self.header_subtitle_item,
+            text=self.page_subtitle.get(),
+        )
+
     def _build_home_page(self) -> tk.Frame:
         page = tk.Frame(self.page_host, bg=BG)
         status_card = tk.Frame(
             page,
             bg=CARD,
             highlightthickness=1,
-            highlightbackground="#f1dbe4",
+            highlightbackground=BORDER,
         )
         status_card.pack(fill="x")
         for index, name in enumerate(
@@ -293,7 +428,7 @@ class Launcher(tk.Tk):
             page,
             height=12,
             relief="flat",
-            bg="#fbf6f8",
+            bg=BG_DEEP,
             fg=DARK,
             insertbackground=DARK,
             font=("Microsoft YaHei UI", 9),
@@ -337,7 +472,7 @@ class Launcher(tk.Tk):
                 self.persona_cards,
                 bg=CARD,
                 highlightthickness=2 if persona_id == active else 1,
-                highlightbackground=PINK if persona_id == active else "#eadde5",
+                highlightbackground=PINK if persona_id == active else BORDER,
                 padx=18,
                 pady=16,
             )
@@ -552,7 +687,7 @@ class Launcher(tk.Tk):
                 "隐私：API Key 与账号配置保存在本机；聊天记忆、图片描述缓存和"
                 "日志不会上传到 GitHub。公开仓库不包含声线权重和个人表情素材。"
             ),
-            bg="#fbf6f8",
+            bg=SURFACE_ALT,
             fg=MUTED,
             wraplength=720,
             justify="left",
