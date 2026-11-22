@@ -55,6 +55,7 @@
 /wcf/
 /voice/
 /downloads/
+/dist/
 /local/
 /backup_*/
 /.visual_tmp/

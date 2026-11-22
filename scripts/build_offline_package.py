@@ -119,17 +119,30 @@ def _copy_runtime(source: str | None, destination: Path, label: str) -> None:
         raise FileNotFoundError(f"{label}不存在：{path}")
     target = destination / "runtime" / label
     if path.is_dir():
+        ignored = [
+            ".git",
+            ".github",
+            "__pycache__",
+            "*.db",
+            "*.db-shm",
+            "*.db-wal",
+            "*.pyc",
+            "*.log",
+            "cache",
+            "config",
+            "data",
+            "log",
+            "logs",
+            "output",
+            "outputs",
+            "temp",
+        ]
+        if label == "GPT-SoVITS-run":
+            ignored.extend(["voices", "logs"])
         shutil.copytree(
             path,
             target,
-            ignore=shutil.ignore_patterns(
-                "__pycache__",
-                "*.pyc",
-                "*.log",
-                "output",
-                "outputs",
-                "temp",
-            ),
+            ignore=shutil.ignore_patterns(*ignored),
         )
     else:
         target.parent.mkdir(parents=True, exist_ok=True)
