@@ -124,8 +124,11 @@ class SetupCoreTest(unittest.TestCase):
             self.assertEqual(result["owner_qq"], "987654")
             self.assertEqual(deploy["qq"], "123456")
             self.assertEqual(deploy["admin_qq"], "987654")
-            self.assertEqual(deploy["install_root"], str(temp))
-            self.assertEqual(deploy["astrbot_root"], str(temp / "astrbot"))
+            self.assertEqual(Path(deploy["install_root"]).resolve(), temp.resolve())
+            self.assertEqual(
+                Path(deploy["astrbot_root"]).resolve(),
+                (temp / "astrbot").resolve(),
+            )
             self.assertEqual(group["enabled_groups"], ["111111", "222222"])
             self.assertEqual(
                 group["image_message_force_reply_user_ids"],
