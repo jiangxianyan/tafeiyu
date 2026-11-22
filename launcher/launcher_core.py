@@ -266,6 +266,8 @@ def _start_napcat(config: dict) -> None:
 
 
 def _start_tts() -> None:
+    if _port_open(TTS_PORT):
+        return
     voice_root = _voice_engine_root()
     python_exe = voice_root / ".venv" / "Scripts" / "python.exe"
     api_script = voice_root / "api_v2.py"
@@ -287,6 +289,8 @@ def _start_tts() -> None:
     ]
     if missing:
         raise RuntimeError("语音环境不完整: " + ", ".join(missing))
+    if _port_open(TTS_PORT):
+        return
     log_dir = voice_root / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
@@ -396,10 +400,17 @@ def _ensure_all_impl(
         _emit(
             progress,
             "log",
-            f"{runtime['persona_name']}绑定的本地语音未运行，正在启动...",
+            f"{runtime['persona_name']}绑定的本地语音未运行，"
+            "等待 AstrBot 插件自动启动...",
         )
-        _start_tts()
-        tts_started = True
+        if not _wait_until(
+            lambda: _http_ready(TTS_PORT, "/docs"),
+            20,
+            stop_event,
+        ):
+            _emit(progress, "log", "语音插件未自动启动，客户端正在启动语音服务...")
+            _start_tts()
+            tts_started = True
     else:
         _emit(progress, "log", "尚未配置语音，跳过语音服务。")
 
