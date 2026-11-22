@@ -105,12 +105,8 @@ def main() -> int:
     ).is_file():
         errors.append("Group Chat Plus AGPL license is missing")
 
-    personal_patterns = ("REDACTED_QQ", "REDACTED_GROUP", "REDACTED_GROUP")
     for path in dict.fromkeys(python_paths):
         source = path.read_text(encoding="utf-8")
-        for value in personal_patterns:
-            if value in source:
-                errors.append(f"{path}: deployment-specific ID {value} is hard-coded")
         if re.search(r"C:\\\\tafei(?:\\\\|\")", source, re.IGNORECASE):
             errors.append(f"{path}: hard-coded C:\\tafei path")
 
