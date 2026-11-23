@@ -227,8 +227,7 @@ def _copy_runtime(source: str | None, destination: Path, label: str) -> None:
                 )
             except OSError:
                 pass
-        scripts = target / "Scripts"
-        if scripts.is_dir():
+        for scripts in target.rglob("Scripts"):
             for pattern in ("activate*", "deactivate*"):
                 for script in scripts.glob(pattern):
                     if script.is_file():

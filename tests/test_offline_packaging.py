@@ -247,6 +247,12 @@ class OfflinePackagingTest(unittest.TestCase):
                 "set VIRTUAL_ENV=C:\\Users\\developer\n",
                 encoding="utf-8",
             )
+            nested_scripts = source / ".venv" / "Scripts"
+            nested_scripts.mkdir(parents=True)
+            (nested_scripts / "activate.ps1").write_text(
+                "C:\\Users\\developer\n",
+                encoding="utf-8",
+            )
             (source / "marker.txt").write_text("ok", encoding="utf-8")
             destination = temp / "stage"
 
@@ -262,6 +268,9 @@ class OfflinePackagingTest(unittest.TestCase):
             self.assertNotIn("home =", config)
             self.assertFalse((copied / "uv-receipt.toml").exists())
             self.assertFalse((copied / "Scripts" / "activate.bat").exists())
+            self.assertFalse(
+                (copied / ".venv" / "Scripts" / "activate.ps1").exists()
+            )
             self.assertTrue(
                 (
                     copied
