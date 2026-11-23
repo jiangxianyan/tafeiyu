@@ -69,8 +69,8 @@ API Key、QQ 会话、聊天数据库、日志、声线权重和参考音频都�
 ### 使用 Release 便携包
 
 1. 打开 [全部 Releases](https://github.com/jiangxianyan/tafeiyu/releases)。
-2. 选择包含 `tafeiyu-offline-part01.zip` 至 `tafeiyu-offline-part09.zip` 的完整运行时分卷。只有 `tafeiyu-source-part*.zip` 的 Release 是源码包，不能直接运行桌面客户端。
-3. 下载全部 9 个分卷，核对 `SHA256SUMS.json` 后解压到同一目录；不要只解压第一个分卷。
+2. 选择带有 `tafeiyu-offline-part*.zip` 的完整运行时分卷。只有 `tafeiyu-source-part*.zip` 的 Release 是源码包，不能直接运行桌面客户端。
+3. 按当前 Release 和 `SHA256SUMS.json` 列出全部分卷下载，核对后解压到同一目录；不要只解压第一个分卷。
 4. 预留约 15 GB 以上磁盘空间，解压到可写目录，建议使用 `D:\TafeiYu` 这类简单 ASCII 路径，不建议放入 `C:\Program Files`。
 5. 如果包内有 Python 安装器，双击 `安装塔菲鱼.bat`；否则安装 Python 3.12 后运行 `启动塔菲.bat`。
 6. 按五步配置向导填写模型、机器人 QQ、主人 QQ、群聊名单，并可选导入自己的声线。
