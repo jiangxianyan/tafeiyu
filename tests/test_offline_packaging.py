@@ -173,6 +173,36 @@ class OfflinePackagingTest(unittest.TestCase):
                 self.assertTrue(PACKAGING._should_skip(transient))
                 self.assertTrue(PACKAGING._should_skip(old_dist))
 
+    def test_astrbot_plugins_are_included_but_private_voice_data_is_not(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            plugins = root / "astrbot" / "data" / "plugins"
+            voice = plugins / "tafei_voice" / "main.py"
+            persona_data = (
+                root
+                / "astrbot"
+                / "data"
+                / "plugin_data"
+                / "tafei_persona"
+                / "style.txt"
+            )
+            voice_data = (
+                root
+                / "astrbot"
+                / "data"
+                / "plugin_data"
+                / "tafei_voice"
+                / "config.json"
+            )
+            for path in (voice, persona_data, voice_data):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("{}", encoding="utf-8")
+            with patch.object(PACKAGING, "ROOT", root):
+                self.assertFalse(PACKAGING._should_skip(plugins))
+                self.assertFalse(PACKAGING._should_skip(voice))
+                self.assertFalse(PACKAGING._should_skip(persona_data))
+                self.assertTrue(PACKAGING._should_skip(voice_data))
+
     def test_runtime_copy_removes_developer_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp = Path(temp_dir)
@@ -205,6 +235,39 @@ class OfflinePackagingTest(unittest.TestCase):
             self.assertNotIn("home =", config)
             self.assertFalse((copied / "uv-receipt.toml").exists())
             self.assertTrue((copied / "marker.txt").is_file())
+
+    def test_voice_runtime_keeps_base_but_excludes_persona_weights(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            source = temp / "GPT-SoVITS-run"
+            base = source / "GPT_SoVITS" / "pretrained_models" / "base.ckpt"
+            custom_gpt = source / "GPT_SoVITS" / "GPT_weights_v2" / "tafei.ckpt"
+            custom_sovits = (
+                source / "GPT_SoVITS" / "SoVITS_weights_v2" / "tafei.pth"
+            )
+            references = source / "voices" / "tafei" / "ref.wav"
+            for path in (base, custom_gpt, custom_sovits, references):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"test")
+            destination = temp / "stage"
+
+            PACKAGING._copy_runtime(
+                str(source),
+                destination,
+                "GPT-SoVITS-run",
+            )
+
+            copied = destination / "runtime" / "GPT-SoVITS-run"
+            self.assertTrue(
+                (copied / "GPT_SoVITS" / "pretrained_models" / "base.ckpt").is_file()
+            )
+            self.assertFalse(
+                (copied / "GPT_SoVITS" / "GPT_weights_v2").exists()
+            )
+            self.assertFalse(
+                (copied / "GPT_SoVITS" / "SoVITS_weights_v2").exists()
+            )
+            self.assertFalse((copied / "voices").exists())
 
 
 if __name__ == "__main__":

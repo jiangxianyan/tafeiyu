@@ -109,10 +109,10 @@ def _should_skip(path: Path) -> bool:
             ("persona_visuals",),
             ("plugin_data", "tafei_persona"),
         }
-        nested = tuple(relative.parts[2:-1])
+        nested = tuple(relative.parts[2:])
         if not any(
-            nested == candidate
-            or (candidate and nested[: len(candidate)] == candidate)
+            nested[: len(candidate)] == candidate
+            or (nested and candidate[: len(nested)] == nested)
             for candidate in allowed
         ):
             return True
@@ -165,7 +165,15 @@ def _copy_runtime(source: str | None, destination: Path, label: str) -> None:
             "temp",
         ]
         if label == "GPT-SoVITS-run":
-            ignored.extend(["voices", "logs"])
+            ignored.extend(
+                [
+                    "voices",
+                    "logs",
+                    "GPT_weights_v*",
+                    "SoVITS_weights_v*",
+                    "model_assets",
+                ]
+            )
         shutil.copytree(
             path,
             target,
