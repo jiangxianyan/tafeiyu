@@ -19,6 +19,9 @@ previous persona's model path.
 - Voice references: normal / cute / happy / annoyed / soft
 - Explicit voice requests such as "发语音" or "说一句" force a voice reply
 - Cached samples are isolated by persona, model, reference audio and style
+- Multi-sentence replies are split into ordered text/voice pairs. Private
+  owner replies may produce at most two voice messages; group auto replies
+  remain limited to one
 
 Admin commands:
 

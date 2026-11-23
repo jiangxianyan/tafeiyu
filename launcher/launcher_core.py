@@ -201,12 +201,45 @@ def _watchdog_running() -> bool:
         return False
 
 
-def latest_login_qr(config: dict | None = None) -> Path | None:
+def qr_is_fresh(
+    path: Path,
+    *,
+    not_before: float,
+    max_age_seconds: float = 120,
+    now: float | None = None,
+) -> bool:
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return False
+    current = time.time() if now is None else now
+    # Filesystem timestamps can be rounded by a second on some drives.
+    return mtime >= not_before - 2 and 0 <= current - mtime <= max_age_seconds
+
+
+def latest_login_qr(
+    config: dict | None = None,
+    *,
+    not_before: float | None = None,
+    max_age_seconds: float | None = None,
+) -> Path | None:
     config = config or load_config()
     shell_dir = Path(manager.norm_win_path(config.get("napcat_shell_dir")))
     candidates = list(
         shell_dir.glob("versions/*/resources/app/napcat/cache/qrcode.png")
     )
+    if not_before is not None:
+        candidates = [
+            path
+            for path in candidates
+            if qr_is_fresh(
+                path,
+                not_before=not_before,
+                max_age_seconds=(
+                    120 if max_age_seconds is None else max_age_seconds
+                ),
+            )
+        ]
     if not candidates:
         return None
     return max(candidates, key=lambda path: path.stat().st_mtime)
@@ -364,6 +397,7 @@ def _ensure_all_impl(
     *,
     include_tts: bool = True,
 ) -> dict:
+    launch_started = time.time()
     config = load_config()
     runtime = active_voice_runtime()
     voice_enabled = (
@@ -440,7 +474,11 @@ def _ensure_all_impl(
             8,
             stop_event,
         )
-        qr_path = latest_login_qr(config)
+        qr_path = latest_login_qr(
+            config,
+            not_before=launch_started,
+            max_age_seconds=120,
+        )
         if qr_path and not manager.pids_connected_to(WS_PORT):
             _emit(progress, "qr", str(qr_path))
             _emit(progress, "log", "已发现登录二维码，请使用 QQ 扫码登录。")

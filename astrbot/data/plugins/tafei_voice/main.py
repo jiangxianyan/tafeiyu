@@ -24,6 +24,7 @@ DEFAULT_API = "http://127.0.0.1:9880"
 MAX_CACHE_FILES = 200
 FEIYU_JOB_TIMEOUT = 180
 MAX_AUDIO_BYTES = 128 * 1024 * 1024
+MAX_VOICE_SEGMENTS = 2
 
 
 def _data_dir() -> str:
@@ -128,6 +129,33 @@ def _speech_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _split_voice_segments(text: str, max_segments: int = 2) -> list[str]:
+    """Split a reply at natural sentence boundaries, never at commas alone."""
+
+    cleaned = re.sub(r"\s+", " ", text or "").strip()
+    if not cleaned:
+        return []
+    boundary = re.compile(
+        r"(?<=[。！？!?；;…~])|(?<=[^\w\s])\s+(?=[\u4e00-\u9fff])"
+    )
+    parts = [part.strip() for part in boundary.split(cleaned) if part.strip()]
+    if not parts:
+        return [cleaned]
+
+    merged = []
+    for part in parts:
+        visible = re.sub(r"[\W_]+", "", part, flags=re.UNICODE)
+        if merged and len(visible) < 2:
+            merged[-1] += part
+        else:
+            merged.append(part)
+
+    limit = max(1, min(MAX_VOICE_SEGMENTS, int(max_segments)))
+    if len(merged) > limit:
+        merged = [*merged[: limit - 1], "".join(merged[limit - 1 :])]
+    return merged
+
+
 def _pick_style(text: str) -> str:
     if re.search(r"生气|讨厌|烦|气死|不理你|滚|笨蛋", text):
         return "annoyed"
@@ -177,6 +205,8 @@ class TafeiVoice(star.Star):
             "auto_probability": 0.15,
             "max_chars": 60,
             "force_max_chars": 300,
+            "sentence_split_enabled": True,
+            "max_voice_segments": MAX_VOICE_SEGMENTS,
             "tts_api": os.environ.get("TAFEI_TTS_API", DEFAULT_API).rstrip("/"),
             "manifest_path": "",
             "tts_config_path": "",
@@ -755,12 +785,53 @@ class TafeiVoice(star.Star):
         ):
             return
         try:
-            spoken_text = _speech_text(text)
-            if not spoken_text:
+            split_enabled = bool(
+                self.config.get("sentence_split_enabled", True)
+            )
+            try:
+                configured_segments = int(
+                    self.config.get("max_voice_segments", MAX_VOICE_SEGMENTS)
+                )
+            except (TypeError, ValueError):
+                configured_segments = MAX_VOICE_SEGMENTS
+            allowed_segments = (
+                configured_segments
+                if owner_private or force_voice
+                else 1
+            )
+            segments = (
+                _split_voice_segments(text, allowed_segments)
+                if split_enabled
+                else [text]
+            )
+            speech_segments = []
+            for segment in segments:
+                spoken = _speech_text(segment)
+                if spoken:
+                    speech_segments.append((segment, spoken))
+            if not speech_segments:
                 return
-            audio_path = await self._synthesize(spoken_text)
-            chain.append(Record.fromFileSystem(audio_path, text=text))
-            logger.info(f"tafei_voice: attached {os.path.basename(audio_path)}")
+            audio_paths = []
+            for _segment, spoken in speech_segments:
+                audio_paths.append(await self._synthesize(spoken))
+            prefix = [
+                segment for segment in chain if not isinstance(segment, Plain)
+            ]
+            paired = list(prefix)
+            for (segment, _spoken), audio_path in zip(
+                speech_segments,
+                audio_paths,
+            ):
+                paired.append(Plain(segment))
+                paired.append(
+                    Record.fromFileSystem(audio_path, text=segment)
+                )
+            chain[:] = paired
+            logger.info(
+                "tafei_voice: attached %s voice message(s): %s",
+                len(audio_paths),
+                ", ".join(os.path.basename(path) for path in audio_paths),
+            )
         except Exception as error:
             logger.warning(f"tafei_voice: synthesis skipped: {error}")
 
@@ -782,6 +853,7 @@ class TafeiVoice(star.Star):
             f"你当前使用的是{self.active_persona_name}绑定的"
             f"{self.binding.get('display_name', '独立声线')}。"
             "你可以发送真实语音消息。主人私聊时每条回复会附带语音。"
+            "系统会按自然句拆分语音，每条语音只对应一段文字，通常最多两条。"
             "群聊中如果群友明确要求你发语音、说一句、念出来、读一下、"
             "说给他听、出声或唱一句，就自然答应并用口头化方式回答；"
             "系统会自动把你的回复合成为当前人格绑定的声线。"

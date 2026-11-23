@@ -5,7 +5,7 @@ import sys
 import time
 import io
 
-BASE = r"C:\tafei"
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BOT = os.path.join(BASE, ".bot_runtime", "bot_manager.py")
 LOG = os.path.join(BASE, "watchdog.log")
 HEARTBEAT = os.path.join(BASE, ".bot_runtime", "watchdog.heartbeat")

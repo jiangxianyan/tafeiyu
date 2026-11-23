@@ -1,0 +1,211 @@
+"""Regression tests for safe and correctly named release packages."""
+
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+try:
+    from astrbot.core.utils.auth_password import verify_dashboard_password
+except ImportError:
+    verify_dashboard_password = None
+
+
+ROOT = Path(__file__).resolve().parents[1]
+PACKAGING_PATH = ROOT / "scripts" / "build_offline_package.py"
+SPEC = importlib.util.spec_from_file_location(
+    "tafeiyu_packaging_test",
+    PACKAGING_PATH,
+)
+PACKAGING = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(PACKAGING)
+
+
+class OfflinePackagingTest(unittest.TestCase):
+    def test_live_passwords_and_secrets_are_rebuilt(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            source = temp / "source"
+            stage = temp / "stage"
+            cmd_path = source / "astrbot" / "data" / "cmd_config.json"
+            group_path = (
+                source
+                / "astrbot"
+                / "data"
+                / "config"
+                / "astrbot_plugin_group_chat_plus_config.json"
+            )
+            cmd_path.parent.mkdir(parents=True)
+            group_path.parent.mkdir(parents=True)
+            cmd_path.write_text(
+                json.dumps(
+                    {
+                        "admins_id": ["123456"],
+                        "provider_sources": [
+                            {
+                                "id": "deepseek",
+                                "key": ["secret-key"],
+                                "custom_headers": {"Authorization": "secret"},
+                            }
+                        ],
+                        "dashboard": {
+                            "username": "astrbot",
+                            "password": "old-password",
+                            "pbkdf2_password": "old-hash",
+                            "jwt_secret": "old-jwt",
+                        },
+                        "platform_settings": {
+                            "id_whitelist": ["123456", "999999"],
+                            "path_mapping": [["C:\\Users\\developer", "D:\\"]],
+                        },
+                        "platform": [
+                            {
+                                "id": "qq-napcat",
+                                "ws_reverse_token": "private-token",
+                            }
+                        ],
+                        "provider_settings": {
+                            "websearch_tavily_key": "private-search-key",
+                        },
+                        "http_proxy": "http://user:pass@example.invalid",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            group_path.write_text(
+                json.dumps(
+                    {
+                        "enabled_groups": ["111"],
+                        "poke_enabled_groups": ["111"],
+                        "proactive_enabled_groups": ["111"],
+                        "blacklist_user_ids": ["222"],
+                        "image_message_force_reply_user_ids": ["123456"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch.object(PACKAGING, "ROOT", source):
+                PACKAGING._sanitize_live_defaults(stage)
+
+            sanitized = json.loads(
+                (stage / "astrbot" / "data" / "cmd_config.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            group = json.loads(
+                (
+                    stage
+                    / "astrbot"
+                    / "data"
+                    / "config"
+                    / "astrbot_plugin_group_chat_plus_config.json"
+                ).read_text(encoding="utf-8")
+            )
+            dashboard = sanitized["dashboard"]
+            self.assertEqual(sanitized["admins_id"], [])
+            self.assertEqual(sanitized["platform_settings"]["id_whitelist"], [])
+            self.assertEqual(sanitized["provider_sources"][0]["key"], [])
+            self.assertEqual(
+                sanitized["provider_sources"][0]["custom_headers"],
+                {},
+            )
+            self.assertEqual(sanitized["http_proxy"], "")
+            self.assertEqual(
+                sanitized["platform_settings"]["path_mapping"],
+                [],
+            )
+            self.assertEqual(
+                sanitized["platform"][0]["ws_reverse_token"],
+                "",
+            )
+            self.assertEqual(
+                sanitized["provider_settings"]["websearch_tavily_key"],
+                "",
+            )
+            self.assertNotEqual(dashboard["password"], "old-password")
+            self.assertNotEqual(dashboard["pbkdf2_password"], "old-hash")
+            self.assertNotEqual(dashboard["jwt_secret"], "old-jwt")
+            algorithm, iterations, salt, digest = dashboard[
+                "pbkdf2_password"
+            ].split("$", 3)
+            expected = hashlib.pbkdf2_hmac(
+                "sha256",
+                dashboard["password"].encode("utf-8"),
+                bytes.fromhex(salt),
+                int(iterations),
+            ).hex()
+            self.assertEqual(algorithm, "pbkdf2_sha256")
+            self.assertEqual(digest, expected)
+            if verify_dashboard_password is not None:
+                self.assertTrue(
+                    verify_dashboard_password(
+                        dashboard["pbkdf2_password"],
+                        dashboard["password"],
+                    )
+                )
+            self.assertEqual(
+                group["image_message_force_reply_user_ids"],
+                [],
+            )
+            self.assertIn(
+                dashboard["password"],
+                (stage / "首次运行说明.txt").read_text(encoding="utf-8"),
+            )
+
+    def test_transient_runtime_files_are_excluded(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            transient = root / ".bot_runtime" / "watchdog.heartbeat"
+            old_dist = root / "dist-final" / "checksums.json"
+            transient.parent.mkdir(parents=True)
+            old_dist.parent.mkdir(parents=True)
+            transient.write_text("1", encoding="ascii")
+            old_dist.write_text("{}", encoding="utf-8")
+            with patch.object(PACKAGING, "ROOT", root):
+                self.assertTrue(PACKAGING._should_skip(transient))
+                self.assertTrue(PACKAGING._should_skip(old_dist))
+
+    def test_runtime_copy_removes_developer_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            source = temp / "astrbot-tool"
+            scripts = source / "Scripts"
+            scripts.mkdir(parents=True)
+            (source / "pyvenv.cfg").write_text(
+                "home = C:\\Users\\developer\\Python312\n"
+                "implementation = CPython\n"
+                "uv = 0.13.4\n"
+                "version_info = 3.12.2\n",
+                encoding="utf-8",
+            )
+            (source / "uv-receipt.toml").write_text(
+                "python = 'C:\\Users\\developer\\Python312\\python.exe'\n",
+                encoding="utf-8",
+            )
+            (source / "marker.txt").write_text("ok", encoding="utf-8")
+            destination = temp / "stage"
+
+            PACKAGING._copy_runtime(
+                str(source),
+                destination,
+                "astrbot-tool",
+            )
+
+            copied = destination / "runtime" / "astrbot-tool"
+            config = (copied / "pyvenv.cfg").read_text(encoding="utf-8")
+            self.assertNotIn("C:\\Users\\developer", config)
+            self.assertNotIn("home =", config)
+            self.assertFalse((copied / "uv-receipt.toml").exists())
+            self.assertTrue((copied / "marker.txt").is_file())
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -10,8 +10,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def repair_voice_venv() -> None:
+def repair_venvs() -> None:
     candidates = [
+        ROOT / "runtime" / "astrbot-tool",
         ROOT / "voice" / "GPT-SoVITS-run" / ".venv",
         ROOT / "runtime" / "GPT-SoVITS-run" / ".venv",
     ]
@@ -33,8 +34,6 @@ def repair_voice_venv() -> None:
             f"home = {values['home']}",
             f"implementation = {values.get('implementation', 'CPython')}",
         ]
-        if values.get("uv"):
-            output.append(f"uv = {values['uv']}")
         output.extend(
             [
                 f"version_info = {values['version_info']}",
@@ -48,7 +47,7 @@ def repair_voice_venv() -> None:
 def main() -> int:
     if os.name != "nt":
         return 0
-    repair_voice_venv()
+    repair_venvs()
     return 0
 
 

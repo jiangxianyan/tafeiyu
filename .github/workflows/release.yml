@@ -35,7 +35,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tafeiyu-release-${{ github.ref_name }}
+          name: tafeiyu-source-${{ github.ref_name }}
           path: |
             dist/*.zip
             dist/SHA256SUMS.json
@@ -46,4 +46,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" dist/*.zip dist/SHA256SUMS.json --generate-notes
+          gh release create "${{ github.ref_name }}" dist/*.zip dist/SHA256SUMS.json `
+            --title "${{ github.ref_name }} source package" `
+            --latest=false `
+            --notes "This is the source-only package. It does not contain Python, AstrBot, NapCat, GPT-SoVITS, voice weights, or reference audio. For the complete Windows portable runtime, use the release marked as the current full offline package, or build it with scripts/build_offline_package.py on a Windows machine."

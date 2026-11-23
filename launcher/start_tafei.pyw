@@ -7,6 +7,7 @@ import os
 import queue
 import sys
 import threading
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -26,6 +27,7 @@ from launcher_core import (
     display_status,
     ensure_all,
     get_status,
+    latest_login_qr,
     restart_after_setup,
     stop_all,
 )
@@ -116,6 +118,9 @@ class Launcher(tk.Tk):
         self.qr_window: tk.Toplevel | None = None
         self.qr_photo: tk.PhotoImage | None = None
         self.qr_refresh_job: str | None = None
+        self.login_wait_job: str | None = None
+        self.login_wait_deadline = 0.0
+        self.launch_started_at = time.time()
         self.last_qr_mtime = 0.0
         self._build_ui()
         self.after(120, self._poll_events)
@@ -812,6 +817,7 @@ class Launcher(tk.Tk):
             ("重新打开配置向导", lambda: self._open_setup(False)),
             ("打开 AstrBot 管理页", self._open_dashboard),
             ("显示 QQ 登录二维码", self._show_login_qr),
+            ("重新生成 QQ 登录二维码", self._restart_napcat_for_qr),
             ("重新检查并启动服务", self.start),
             ("停止所有服务", self._stop_services),
             ("关闭客户端窗口", self._close),
@@ -886,6 +892,8 @@ class Launcher(tk.Tk):
                 if self.action_mode == "stop":
                     self._append_log("服务停止流程完成。")
                     self.login_success_seen = False
+                    self._cancel_login_wait()
+                    self._close_qr()
                     self.action_mode = "start"
                     continue
                 if value.get("NapCat / QQ") == "在线":
@@ -893,8 +901,11 @@ class Launcher(tk.Tk):
                     self.login_success_seen = True
                     self._close_qr()
                 else:
-                    self._append_log("服务检查完成；QQ 未连线时需要人工登录。")
-                    self._show_login_qr()
+                    self._append_log(
+                        "服务检查完成；QQ 可能正在快速登录，"
+                        "正在等待本次登录结果。"
+                    )
+                    self._begin_login_wait()
         self.after(120, self._poll_events)
 
     def start(self) -> None:
@@ -956,6 +967,7 @@ class Launcher(tk.Tk):
             if not self.login_success_seen:
                 self._append_log("检测到 QQ 登录成功，塔菲已恢复在线。")
                 self.login_success_seen = True
+            self._cancel_login_wait()
             self._close_qr()
         elif self.login_success_seen:
             self._append_log("检测到 QQ 已离线，请查看二维码或重新检查。")
@@ -1034,28 +1046,84 @@ class Launcher(tk.Tk):
         os.startfile("http://127.0.0.1:6185")
 
     def _latest_qr(self) -> Path | None:
-        cache_root = (
-            ROOT
-            / "napcat"
-            / "NapCat.52230.Shell"
-            / "versions"
+        return latest_login_qr(
+            not_before=self.launch_started_at,
+            max_age_seconds=120,
         )
-        candidates = list(
-            cache_root.glob("*/resources/app/napcat/cache/qrcode.png")
-        )
-        if not candidates:
-            return None
-        return max(candidates, key=lambda path: path.stat().st_mtime)
+
+    def _begin_login_wait(self) -> None:
+        self._cancel_login_wait()
+        self.login_wait_deadline = time.time() + 45
+        self.login_wait_job = self.after(1200, self._login_wait_tick)
+
+    def _login_wait_tick(self) -> None:
+        self.login_wait_job = None
+        if self.stop_event.is_set():
+            return
+        if self.login_success_seen:
+            self._cancel_login_wait()
+            self._close_qr()
+            return
+        path = self._latest_qr()
+        if path is not None:
+            self._cancel_login_wait()
+            self._open_qr_window(path)
+            return
+        if time.time() >= self.login_wait_deadline:
+            self._append_log(
+                "未发现本次启动后生成的有效二维码。旧缓存不会显示；"
+                "如仍无法登录，请点击“检查 QQ 登录”。"
+            )
+            return
+        self.login_wait_job = self.after(1200, self._login_wait_tick)
+
+    def _cancel_login_wait(self) -> None:
+        if self.login_wait_job:
+            self.after_cancel(self.login_wait_job)
+            self.login_wait_job = None
 
     def _show_login_qr(self) -> None:
+        self._cancel_login_wait()
+        status = get_status()
+        if status.get("napcat_online"):
+            self.login_success_seen = True
+            self._close_qr()
+            messagebox.showinfo(
+                "QQ 已在线",
+                "NapCat 已连接 AstrBot，当前无需扫码登录。",
+                parent=self,
+            )
+            return
         path = self._latest_qr()
         if not path:
             messagebox.showinfo(
-                "暂无二维码",
-                "还没有生成登录二维码。请先等待 NapCat 启动完成。",
+                "未发现本次新二维码",
+                "没有使用旧缓存二维码。QQ 可能正在快速登录；"
+                "如果刚扫码成功，请等待几秒后重新检查。若仍未登录，"
+                "请重新检查并启动服务以生成新二维码。",
+                parent=self,
             )
             return
         self._open_qr_window(path)
+
+    def _restart_napcat_for_qr(self) -> None:
+        if not messagebox.askyesno(
+            "重新生成登录二维码",
+            "这会重启 AstrBot、本地语音和 QQ 桥，并断开当前 QQ 会话。"
+            "扫码成功后会恢复在线。确定继续吗？",
+            icon="warning",
+            default="no",
+            parent=self,
+        ):
+            return
+        self._close_qr()
+        self.launch_started_at = time.time()
+        self.login_success_seen = False
+        self.initial_done = False
+        self.force_restart_after_setup = True
+        self.force_restart_qq = True
+        self._append_log("正在重启 QQ 桥以生成新的登录二维码...")
+        self.start()
 
     def _open_qr_window(self, path: Path) -> None:
         if self.qr_window and self.qr_window.winfo_exists():
@@ -1065,7 +1133,7 @@ class Launcher(tk.Tk):
 
         window = tk.Toplevel(self)
         window.title("QQ 登录二维码")
-        window.geometry("320x410")
+        window.geometry("340x450")
         window.resizable(False, False)
         window.configure(bg="white")
         window.protocol("WM_DELETE_WINDOW", self._close_qr)
@@ -1076,17 +1144,37 @@ class Launcher(tk.Tk):
             bg="white",
             fg=DARK,
         ).pack(pady=(18, 4))
+        self.qr_status_var = tk.StringVar(
+            value="此二维码仅对本次启动有效，过期后不会显示旧缓存。"
+        )
         tk.Label(
             window,
-            text="二维码会在登录成功后失效；过期时启动器会自动刷新。",
+            textvariable=self.qr_status_var,
             font=("Microsoft YaHei UI", 9),
             bg="white",
             fg=MUTED,
+            justify="center",
+            wraplength=285,
         ).pack(pady=(0, 10))
         self.qr_label = tk.Label(window, bg="white")
         self.qr_label.pack(expand=True)
-        ttk.Button(window, text="关闭", command=self._close_qr).pack(pady=12)
+        actions = tk.Frame(window, bg="white")
+        actions.pack(pady=12)
+        ttk.Button(
+            actions,
+            text="检查登录状态",
+            command=self._show_login_qr,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            actions,
+            text="重新生成二维码",
+            command=self._restart_napcat_for_qr,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(actions, text="关闭", command=self._close_qr).pack(
+            side="left"
+        )
         self.qr_window = window
+        self.last_qr_mtime = 0.0
         self._refresh_qr(path)
         self._schedule_qr_refresh()
 
@@ -1095,6 +1183,10 @@ class Launcher(tk.Tk):
             return
         path = path or self._latest_qr()
         if not path:
+            self.qr_label.configure(image="", text="")
+            self.qr_status_var.set(
+                "当前二维码已过期，正在等待本次启动生成的新二维码。"
+            )
             return
         try:
             mtime = path.stat().st_mtime
@@ -1109,7 +1201,7 @@ class Launcher(tk.Tk):
     def _schedule_qr_refresh(self) -> None:
         if self.qr_refresh_job:
             self.after_cancel(self.qr_refresh_job)
-        self.qr_refresh_job = self.after(3000, self._qr_refresh_tick)
+            self.qr_refresh_job = self.after(2000, self._qr_refresh_tick)
 
     def _qr_refresh_tick(self) -> None:
         self.qr_refresh_job = None
@@ -1119,12 +1211,14 @@ class Launcher(tk.Tk):
         self._schedule_qr_refresh()
 
     def _close_qr(self) -> None:
+        self._cancel_login_wait()
         if self.qr_refresh_job:
             self.after_cancel(self.qr_refresh_job)
             self.qr_refresh_job = None
         if self.qr_window and self.qr_window.winfo_exists():
             self.qr_window.destroy()
         self.qr_window = None
+        self.qr_photo = None
 
     def _close(self) -> None:
         self.stop_event.set()

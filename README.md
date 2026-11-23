@@ -68,18 +68,39 @@ API Key、QQ 会话、聊天数据库、日志、声线权重和参考音频都�
 
 ### 使用 Release 便携包
 
-1. 打开 [最新 Releases](https://github.com/jiangxianyan/tafeiyu/releases/latest)。
-2. 下载全部分卷，核对 SHA-256 后解压到同一目录。
-3. 双击 `启动塔菲.bat`。
-4. 按五步配置向导填写模型、机器人 QQ、主人 QQ、群聊名单，并可选导入自己的声线。
-5. 扫码登录 QQ，等待 AstrBot、NapCat 和本地语音服务全部在线。
+1. 打开 [全部 Releases](https://github.com/jiangxianyan/tafeiyu/releases)。
+2. 选择包含 `tafeiyu-offline-part01.zip` 至 `tafeiyu-offline-part09.zip` 的完整运行时分卷。只有 `tafeiyu-source-part*.zip` 的 Release 是源码包，不能直接运行桌面客户端。
+3. 下载全部 9 个分卷，核对 `SHA256SUMS.json` 后解压到同一目录；不要只解压第一个分卷。
+4. 预留约 15 GB 以上磁盘空间，解压到可写目录，建议使用 `D:\TafeiYu` 这类简单 ASCII 路径，不建议放入 `C:\Program Files`。
+5. 如果包内有 Python 安装器，双击 `安装塔菲鱼.bat`；否则安装 Python 3.12 后运行 `启动塔菲.bat`。
+6. 按五步配置向导填写模型、机器人 QQ、主人 QQ、群聊名单，并可选导入自己的声线。
+7. 扫码登录 QQ，等待 AstrBot、NapCat 和本地语音服务全部在线。
+
+完整运行包内的 `首次运行说明.txt` 会提供随机生成的本地 AstrBot
+管理页初始密码；首次登录后应立即修改。源码包不包含开发机的密码或 JWT。
 
 首次运行需要准备：
 
 - Windows 10/11；
+- Python 3.12（如果下载包中没有 `runtime\python-installer.exe`）；
 - 一个 OpenAI 兼容模型服务或 API Key；
 - 一个独立的机器人 QQ 号；
 - 可选：你有权使用的 GPT-SoVITS 权重与参考音频。
+
+提供完整运行时分卷的稳定版本可在
+[v0.1.2](https://github.com/jiangxianyan/tafeiyu/releases/tag/v0.1.2)
+查看。源码 Release 与完整离线 Release 会使用不同文件名；下载前请先确认
+Release 说明。
+
+### 数据保存在哪里
+
+聊天配置、记忆、人格、插件状态和本地语音配置默认保存在解压目录下的
+`astrbot\data\`；QQ 登录状态保存在 NapCat/Tencent Files 目录。项目不会把
+这些数据同步到开发者服务器。
+
+但“本地保存”不等于所有处理都在本地：聊天文本会发送给配置的大模型 API，
+图片会发送给视觉模型，联网搜索会把查询发送给搜索引擎，使用外部语音服务时
+待朗读文本会发送给对应服务。QQ 消息本身仍经过腾讯服务器。
 
 ### 从源码运行
 
@@ -89,7 +110,9 @@ cd tafeiyu
 python -m pip install -r requirements-launcher.txt
 ```
 
-然后运行 `启动塔菲.bat`，按配置向导完成初始化。详细环境与运维要求见 [docs/OPERATIONS.md](docs/OPERATIONS.md)。
+源码模式还需要自行准备 AstrBot、NapCat 和可选 GPT-SoVITS 运行环境。
+完成依赖安装后运行 `启动塔菲.bat`，按配置向导初始化。详细环境与运维要求见
+[docs/OPERATIONS.md](docs/OPERATIONS.md)。
 
 ## 运行结构
 
