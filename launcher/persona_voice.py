@@ -11,7 +11,7 @@ import webbrowser
 from pathlib import Path
 from urllib.parse import urlparse
 
-from setup_core import import_voice_pack
+from setup_core import import_voice_bundle, import_voice_pack
 
 ROOT = Path(__file__).resolve().parent.parent
 PERSONA_INDEX = ROOT / "config" / "personas.json"
@@ -288,6 +288,27 @@ def import_local_voice(
     voice_config["enabled"] = True
     _save(VOICE_CONFIG, voice_config)
     return result
+
+
+def import_voice_bundle_file(
+    archive_path: str,
+    *,
+    persona_id: str,
+) -> dict:
+    persona = next(
+        (
+            item
+            for item in persona_catalog()
+            if str(item["id"]) == str(persona_id)
+        ),
+        None,
+    )
+    if persona is None:
+        raise ValueError(f"未知人格：{persona_id}")
+    return import_voice_bundle(
+        archive_path,
+        persona_id=persona_id,
+    )
 
 
 def import_tafei_voice(**kwargs) -> dict:

@@ -15,6 +15,7 @@ from setup_core import (
     current_qq_settings,
     disable_voice,
     existing_voice_settings,
+    import_voice_bundle,
     import_voice_pack,
     keep_existing_voice,
     reset_setup_for_test,
@@ -391,7 +392,7 @@ class SetupWizard(tk.Toplevel):
     def _build_voice_page(self) -> tk.Frame:
         page = self._page_shell(
             "语音声线（可选）",
-            "公开安装包不包含第三方声线。请仅导入你有权使用的 GPT-SoVITS 权重和参考音频。",
+            "可以直接选择 .tafeivoice.zip 语音包，也可以手动导入 GPT-SoVITS 权重和参考音频。",
         )
         self.voice_mode = tk.StringVar(
             value="existing" if self.voice_data["enabled"] else "none"
@@ -421,6 +422,35 @@ class SetupWizard(tk.Toplevel):
             command=self._voice_mode_changed,
         ).pack(anchor="w")
 
+        bundle_row = tk.Frame(page, bg=CARD)
+        bundle_row.pack(fill="x", pady=(10, 0))
+        self.voice_bundle = tk.StringVar()
+        self.voice_widgets: list[tk.Widget] = [
+            tk.Label(
+                bundle_row,
+                text="一键语音包",
+                bg=CARD,
+                fg=DARK,
+                font=("Microsoft YaHei UI", 10),
+            )
+        ]
+        self.voice_widgets[0].pack(side="left")
+        bundle_entry = ttk.Entry(
+            bundle_row,
+            textvariable=self.voice_bundle,
+            state="readonly",
+        )
+        bundle_entry.pack(side="left", fill="x", expand=True, padx=(18, 8))
+        bundle_button = RoundedButton(
+            bundle_row,
+            text="选择 .tafeivoice.zip",
+            kind="secondary",
+            min_width=160,
+            command=self._browse_bundle,
+        )
+        bundle_button.pack(side="right")
+        self.voice_widgets.extend([bundle_entry, bundle_button])
+
         if self.voice_data["enabled"]:
             tk.Label(
                 page,
@@ -439,7 +469,6 @@ class SetupWizard(tk.Toplevel):
         self.reference_audio = tk.StringVar()
         self.reference_text = tk.StringVar()
         self.voice_version = tk.StringVar(value="v2")
-        self.voice_widgets: list[tk.Widget] = []
         self.voice_widgets.extend(
             self._browse_row(form, 0, "GPT 权重", self.gpt_weights, ".ckpt")
         )
@@ -506,6 +535,19 @@ class SetupWizard(tk.Toplevel):
         path = filedialog.askopenfilename(parent=self, filetypes=filetypes)
         if path:
             variable.set(path)
+
+    def _browse_bundle(self) -> None:
+        path = filedialog.askopenfilename(
+            parent=self,
+            title="选择塔菲鱼语音包",
+            filetypes=[
+                ("塔菲鱼语音包", "*.tafeivoice.zip"),
+                ("ZIP 文件", "*.zip"),
+                ("所有文件", "*.*"),
+            ],
+        )
+        if path:
+            self.voice_bundle.set(path)
 
     def _voice_mode_changed(self) -> None:
         enabled = self.voice_mode.get() == "import"
@@ -596,7 +638,11 @@ class SetupWizard(tk.Toplevel):
         voice_mode = self.voice_mode.get()
         voice_text = {
             "existing": "保留当前声线",
-            "import": self.gpt_weights.get() or "导入新声线",
+            "import": (
+                self.voice_bundle.get()
+                or self.gpt_weights.get()
+                or "导入新声线"
+            ),
             "none": "仅文字聊天",
         }[voice_mode]
         white = " ".join(self.group_white.get("1.0", "end").split())
@@ -644,13 +690,19 @@ class SetupWizard(tk.Toplevel):
             )
             mode = self.voice_mode.get()
             if mode == "import":
-                voice = import_voice_pack(
-                    gpt_weights=self.gpt_weights.get(),
-                    sovits_weights=self.sovits_weights.get(),
-                    reference_audio=self.reference_audio.get(),
-                    reference_text=self.reference_text.get(),
-                    version=self.voice_version.get(),
-                )
+                if self.voice_bundle.get().strip():
+                    voice = import_voice_bundle(
+                        self.voice_bundle.get(),
+                        persona_id="tafei",
+                    )
+                else:
+                    voice = import_voice_pack(
+                        gpt_weights=self.gpt_weights.get(),
+                        sovits_weights=self.sovits_weights.get(),
+                        reference_audio=self.reference_audio.get(),
+                        reference_text=self.reference_text.get(),
+                        version=self.voice_version.get(),
+                    )
             elif mode == "existing":
                 voice = keep_existing_voice()
                 if not voice.get("enabled"):

@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 from persona_voice import (
     active_persona_id,
     configure_feiyu_service,
+    import_voice_bundle_file,
     import_local_voice,
     open_guide,
     open_url,
@@ -357,7 +358,10 @@ class PersonaVoicePage(tk.Frame):
             )
         if provider == "gpt_sovits":
             action_buttons.append(
-                ("导入本地声线", lambda p=persona: self._import_local(p))
+                ("导入语音包", lambda p=persona: self._import_bundle(p))
+            )
+            action_buttons.append(
+                ("手动导入", lambda p=persona: self._import_local(p))
             )
         elif provider == "feiyu_voice_http":
             action_buttons.extend(
@@ -439,6 +443,35 @@ class PersonaVoicePage(tk.Frame):
             persona_id=str(persona["id"]),
             display_name=str(persona.get("display_name") or persona["id"]),
         )
+
+    def _import_bundle(self, persona: dict) -> None:
+        path = filedialog.askopenfilename(
+            parent=self,
+            title="选择塔菲鱼语音包",
+            filetypes=[
+                ("塔菲鱼语音包", "*.tafeivoice.zip"),
+                ("ZIP 文件", "*.zip"),
+                ("所有文件", "*.*"),
+            ],
+        )
+        if not path:
+            return
+        try:
+            result = import_voice_bundle_file(
+                path,
+                persona_id=str(persona["id"]),
+            )
+        except Exception as error:
+            messagebox.showerror("语音包导入失败", str(error), parent=self)
+            return
+        messagebox.showinfo(
+            "语音包已安装",
+            "声线已导入并绑定，共安装 "
+            f"{result['references']} 条参考音频。\n"
+            "点击“启用此人格语音”即可使用。",
+            parent=self,
+        )
+        self._refresh()
 
     def _connect_feiyu(self, persona: dict) -> None:
         FeiyuServiceDialog(

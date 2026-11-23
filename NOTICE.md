@@ -33,18 +33,19 @@ exclusive rights to, the upstream project's material.
 
 ## Voice-model and audio policy
 
-This repository and its public release packages do not contain:
+The main runtime archives do not contain:
 
 - GPT-SoVITS model weights
 - reference audio
 - generated voice samples
 - copied character artwork, Live2D models, music, or stickers
 
-The current voice resources do not have a confirmed redistribution license.
-Publicly accessible files are not necessarily licensed for redistribution.
-Users must obtain voice models and reference audio from sources they are legally
-entitled to use and must comply with applicable platform rules, personality
-rights, voice rights, and other third-party rights.
+An optional Taffy V2 voice pack is distributed separately from the main runtime
+archives. The project owner is responsible for confirming that redistribution
+of its weights and reference audio is permitted. Publicly accessible files are
+not necessarily licensed for redistribution. Users must use only resources they
+are legally entitled to use and must comply with applicable platform rules,
+personality rights, voice rights, and other third-party rights.
 
 The project does not host unauthorized copies and does not grant permission to
 redistribute third-party voice resources. The project QQ community group is
@@ -64,8 +65,9 @@ must follow the upstream project's deployment and licensing terms.
 ### 中文说明
 
 本项目是非官方粉丝作品，人格和说话方式的一部分参考自 MIT 许可的
-`ace-taffy-skill`。当前语音权重和参考音频没有明确再分发许可，因此不会
-包含在公开仓库、安装器或 Release 安装包中。
+`ace-taffy-skill`。主运行分卷不直接包含语音权重和参考音频；塔菲 V2
+声线作为独立语音包提供，需用户主动下载后导入。语音包的公开传播授权
+由项目所有者确认，使用者仍需遵守相应角色和声音权利。
 
 用户可以自行取得并仅使用自己有权使用的声线资源。项目 QQ 交流群为
 **296334261**，只用于安装讨论、功能反馈、人格/插件交流和合法来源交流，

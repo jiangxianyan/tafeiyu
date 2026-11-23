@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import tempfile
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -672,6 +673,193 @@ def import_voice_pack(
         "enabled": True,
         "manifest_path": str(manifest_path),
         "tts_config_path": str(tts_config_path),
+    }
+
+
+def import_voice_bundle(
+    archive: str | Path,
+    *,
+    persona_id: str = "tafei",
+    voice_config_path: Path = VOICE_CONFIG,
+    pack_root: Path | None = None,
+) -> dict:
+    """Install a signed-by-content .tafeivoice.zip as a persona voice pack."""
+
+    try:
+        import yaml
+    except ImportError as error:
+        raise RuntimeError(
+            "语音配置需要 PyYAML；请先运行 "
+            "python -m pip install -r requirements-launcher.txt"
+        ) from error
+
+    archive_path = Path(archive).expanduser().resolve()
+    if not archive_path.is_file():
+        raise ValueError("语音包不存在")
+    if archive_path.suffix.lower() != ".zip":
+        raise ValueError("语音包必须是 .tafeivoice.zip 文件")
+
+    allowed_suffixes = {".ckpt", ".pth", ".wav", ".json", ".txt", ".md"}
+    max_total = 600 * 1024 * 1024
+    with zipfile.ZipFile(archive_path) as source:
+        infos = source.infolist()
+        total_size = sum(info.file_size for info in infos if not info.is_dir())
+        if total_size > max_total:
+            raise ValueError("语音包解压后超过 600MB，已拒绝导入")
+        for info in infos:
+            name = info.filename.replace("\\", "/")
+            path = Path(name)
+            if path.is_absolute() or ".." in path.parts:
+                raise ValueError(f"语音包包含不安全路径：{name}")
+            if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                raise ValueError("语音包不能包含符号链接")
+            if not info.is_dir() and path.suffix.lower() not in allowed_suffixes:
+                raise ValueError(f"语音包包含不允许的文件：{name}")
+        try:
+            pack = json.loads(source.read("pack.json").decode("utf-8-sig"))
+        except KeyError as error:
+            raise ValueError("语音包缺少 pack.json") from error
+        if str(pack.get("format") or "") != "tafeiyu.voice_pack":
+            raise ValueError("不是塔菲鱼语音包")
+        pack_persona = str(pack.get("persona_id") or "").strip()
+        if pack_persona != persona_id:
+            raise ValueError(
+                f"语音包绑定的角色是 {pack_persona or '未知'}，"
+                f"当前角色是 {persona_id}"
+            )
+        version = str(pack.get("model_version") or "").strip()
+        if version not in {"v1", "v2", "v2Pro", "v2ProPlus", "v3", "v4"}:
+            raise ValueError("语音包模型版本无效")
+        gpt_member = str(pack.get("gpt_model") or "").replace("\\", "/")
+        sovits_member = str(pack.get("sovits_model") or "").replace("\\", "/")
+        references = pack.get("references")
+        if not isinstance(references, list) or not references:
+            raise ValueError("语音包没有参考音频")
+        required_members = {gpt_member, sovits_member}
+        reference_rows = []
+        for reference in references:
+            if not isinstance(reference, dict):
+                raise ValueError("语音包参考音频格式无效")
+            member = str(reference.get("file") or "").replace("\\", "/")
+            text = str(reference.get("text") or "").strip()
+            reference_id = str(reference.get("id") or "").strip()
+            if not member or not text or not reference_id:
+                raise ValueError("语音包参考音频缺少编号、文件或文本")
+            required_members.add(member)
+            reference_rows.append(
+                {"id": reference_id, "file": member, "text": text}
+            )
+        names = {info.filename.replace("\\", "/") for info in infos}
+        missing = sorted(required_members - names)
+        if missing:
+            raise ValueError("语音包缺少文件：" + "、".join(missing))
+
+        hasher = hashlib.sha256()
+        for member in sorted(required_members):
+            hasher.update(member.encode("utf-8"))
+            with source.open(member) as handle:
+                for chunk in iter(lambda: handle.read(4 * 1024 * 1024), b""):
+                    hasher.update(chunk)
+        signature = hasher.hexdigest()[:16]
+
+        pack_root = pack_root or ROOT / "voice" / "packs"
+        pack_root.mkdir(parents=True, exist_ok=True)
+        pack_dir = pack_root / f"{persona_id}_{signature}"
+        if not pack_dir.is_dir():
+            staging = Path(
+                tempfile.mkdtemp(prefix=f".{persona_id}-{signature[:8]}-", dir=pack_root)
+            )
+            try:
+                for member in required_members:
+                    destination = staging / Path(member)
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    with source.open(member) as reader, destination.open("wb") as writer:
+                        shutil.copyfileobj(reader, writer)
+                staging.replace(pack_dir)
+            finally:
+                if staging.exists():
+                    shutil.rmtree(staging, ignore_errors=True)
+
+    base_yaml = _voice_engine() / "GPT_SoVITS" / "configs" / "tts_infer.yaml"
+    if not base_yaml.is_file():
+        raise RuntimeError("未找到 GPT-SoVITS 引擎配置")
+    with base_yaml.open(encoding="utf-8") as handle:
+        tts_data = yaml.safe_load(handle) or {}
+    custom = dict(tts_data.get("custom") or {})
+    custom.update(
+        {
+            "bert_base_path": "GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large",
+            "cnhuhbert_base_path": "GPT_SoVITS/pretrained_models/chinese-hubert-base",
+            "device": "cuda",
+            "is_half": True,
+            "version": version,
+            "t2s_weights_path": str(pack_dir / gpt_member),
+            "vits_weights_path": str(pack_dir / sovits_member),
+        }
+    )
+    tts_data["custom"] = custom
+    tts_config_path = pack_dir / "tts_infer.yaml"
+    with tts_config_path.open("w", encoding="utf-8", newline="\n") as handle:
+        yaml.safe_dump(tts_data, handle, allow_unicode=True, sort_keys=False)
+
+    manifest = {
+        "name": str(pack.get("display_name") or persona_id),
+        "engine": "gpt-sovits",
+        "model_version": version,
+        "gpt_model": str(pack_dir / gpt_member),
+        "sovits_model": str(pack_dir / sovits_member),
+        "reference_sample_rate": int(pack.get("reference_sample_rate") or 32000),
+        "references": reference_rows,
+    }
+    manifest_path = pack_dir / "manifest.json"
+    _save_json(manifest_path, manifest)
+
+    configured_styles = pack.get("style_refs")
+    default_styles = {
+        "normal": reference_rows[0]["id"],
+        "cute": reference_rows[0]["id"],
+        "happy": reference_rows[min(8, len(reference_rows) - 1)]["id"],
+        "annoyed": reference_rows[min(9, len(reference_rows) - 1)]["id"],
+        "soft": reference_rows[min(14, len(reference_rows) - 1)]["id"],
+    }
+    style_refs = {
+        str(key): str(value)
+        for key, value in (
+            configured_styles.items()
+            if isinstance(configured_styles, dict)
+            else default_styles.items()
+        )
+    }
+    reference_ids = {row["id"] for row in reference_rows}
+    style_refs = {
+        key: value for key, value in style_refs.items() if value in reference_ids
+    }
+    for key, value in default_styles.items():
+        style_refs.setdefault(key, value)
+
+    config = _load_json(voice_config_path)
+    config.update(
+        {
+            "enabled": True,
+            "manifest_path": str(manifest_path),
+            "tts_config_path": str(tts_config_path),
+            "style_refs": style_refs,
+        }
+    )
+    config.setdefault("voice_bindings", {})[persona_id] = {
+        "provider": "gpt_sovits",
+        "enabled": True,
+        "manifest_path": str(manifest_path),
+        "tts_config_path": str(tts_config_path),
+        "style_refs": dict(style_refs),
+    }
+    _save_json(voice_config_path, config)
+    return {
+        "enabled": True,
+        "manifest_path": str(manifest_path),
+        "tts_config_path": str(tts_config_path),
+        "style_refs": style_refs,
+        "references": len(reference_rows),
     }
 
 
