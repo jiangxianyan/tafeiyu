@@ -157,6 +157,52 @@ class VoiceRoutingTest(unittest.TestCase):
         plugin.tts_config_path = plugin.binding["tts_config_path"]
         self.assertFalse(plugin._voice_enabled())
 
+    def test_gpt_keeps_the_semantic_sentence_whole(self) -> None:
+        plugin = self.make_plugin()
+        plugin.binding = {"provider": "gpt_sovits"}
+        plugin._refresh_binding = lambda: plugin.binding
+        plugin._synthesize_quality_checked = AsyncMock(
+            return_value="C:/tmp/whole.wav"
+        )
+        text = "前半句，后半句。"
+        result = asyncio.run(plugin._synthesize(text, style="cute"))
+        self.assertEqual(result, "C:/tmp/whole.wav")
+        plugin._synthesize_quality_checked.assert_awaited_once_with(
+            text,
+            "cute",
+        )
+
+    def test_suspicious_duration_triggers_one_retry(self) -> None:
+        plugin = self.make_plugin()
+        plugin.binding = {"provider": "gpt_sovits"}
+        plugin.config.update(
+            {
+                "gpt_quality_retry_enabled": True,
+                "gpt_seed": 2026,
+                "gpt_retry_seed": 2027,
+            }
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            first = str(Path(temp_dir) / "first.wav")
+            retry = str(Path(temp_dir) / "retry.wav")
+            for path, seconds in ((first, 0.4), (retry, 2.4)):
+                with wave.open(path, "wb") as handle:
+                    handle.setnchannels(1)
+                    handle.setsampwidth(2)
+                    handle.setframerate(1000)
+                    handle.writeframes(b"\x00\x00" * int(1000 * seconds))
+            plugin._synthesize_provider = AsyncMock(
+                side_effect=[first, retry]
+            )
+            chosen = asyncio.run(
+                plugin._synthesize_quality_checked(
+                    "这是一次语音质量测试",
+                    "cute",
+                )
+            )
+        self.assertEqual(chosen, retry)
+        self.assertEqual(plugin._synthesize_provider.await_count, 2)
+
     def test_cache_key_changes_with_persona_and_reference(self) -> None:
         manifest = {
             "gpt_model": "gpt.ckpt",
@@ -190,6 +236,15 @@ class VoiceRoutingTest(unittest.TestCase):
         )
         self.assertNotEqual(first, other_persona)
         self.assertNotEqual(first, other_reference)
+        other_generation = VOICE.TafeiVoice._gpt_cache_key(
+            persona_id="tafei",
+            manifest=manifest,
+            reference=reference,
+            style="cute",
+            text="你好喵",
+            generation={"seed": 2027},
+        )
+        self.assertNotEqual(first, other_generation)
 
     def test_sentence_splitter_handles_emoji_space_boundary(self) -> None:
         parts = VOICE._split_voice_segments(

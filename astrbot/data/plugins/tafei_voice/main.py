@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import io
 import json
+import math
 import os
 import random
 import re
@@ -301,6 +302,18 @@ def _pick_style(text: str) -> str:
     return "cute"
 
 
+def _estimated_speech_seconds(text: str) -> float:
+    spoken = re.sub(r"[\s，。！？：；、“”‘’（）()\-]", "", text or "")
+    latin_words = re.findall(r"[A-Za-z]+", text or "")
+    latin_chars = sum(len(word) for word in latin_words)
+    chinese_chars = max(0, len(spoken) - latin_chars)
+    punctuation = len(re.findall(r"[，。！？：；、]", text or ""))
+    return max(
+        0.55,
+        chinese_chars / 4.1 + len(latin_words) * 0.34 + punctuation * 0.10,
+    )
+
+
 class TafeiVoice(star.Star):
     def __init__(self, context: star.Context) -> None:
         super().__init__(context)
@@ -341,6 +354,13 @@ class TafeiVoice(star.Star):
             "sentence_split_enabled": True,
             "max_voice_segments": MAX_VOICE_SEGMENTS,
             "punctuation_pauses_ms": DEFAULT_PUNCTUATION_PAUSES_MS,
+            "gpt_text_split_method": "cut0",
+            "gpt_speed_factor": 1.04,
+            "gpt_temperature": 0.84,
+            "gpt_seed": 2026,
+            "gpt_retry_seed": 2027,
+            "gpt_quality_retry_enabled": True,
+            "gpt_internal_split_enabled": False,
             "tts_api": os.environ.get("TAFEI_TTS_API", DEFAULT_API).rstrip("/"),
             "manifest_path": "",
             "tts_config_path": "",
@@ -532,6 +552,7 @@ class TafeiVoice(star.Star):
         text: str,
         manifest_path: str = "",
         reference_path: str = "",
+        generation: dict | None = None,
     ) -> str:
         def file_state(path: str):
             if not path:
@@ -570,6 +591,7 @@ class TafeiVoice(star.Star):
             "reference_audio": file_state(reference_path),
             "style": style,
             "text": text,
+            "generation": generation or {},
         }
         return hashlib.sha256(
             json.dumps(
@@ -651,6 +673,7 @@ class TafeiVoice(star.Star):
         self,
         text: str,
         style: str,
+        generation: dict | None = None,
     ) -> str:
         self._refresh_binding()
         provider = str(self.binding.get("provider") or "")
@@ -658,11 +681,102 @@ class TafeiVoice(star.Star):
             return await self._synthesize_feiyu(text, style)
         if provider != "gpt_sovits":
             raise RuntimeError(f"{self.active_persona_name}没有绑定可用的声线")
-        return await self._synthesize_gpt_sovits(text, style)
+        return await self._synthesize_gpt_sovits(
+            text,
+            style,
+            generation=generation,
+        )
+
+    def _gpt_generation(self, seed: int | None = None) -> dict:
+        return {
+            "text_split_method": str(
+                self.config.get("gpt_text_split_method", "cut0")
+            ),
+            "speed_factor": float(
+                self.config.get("gpt_speed_factor", 1.04)
+            ),
+            "temperature": float(
+                self.config.get("gpt_temperature", 0.84)
+            ),
+            "seed": int(
+                seed
+                if seed is not None
+                else self.config.get("gpt_seed", 2026)
+            ),
+        }
+
+    async def _synthesize_quality_checked(
+        self,
+        text: str,
+        style: str,
+    ) -> str:
+        provider = str(self.binding.get("provider") or "")
+        generation = self._gpt_generation()
+        first = await self._synthesize_provider(
+            text,
+            style,
+            generation=generation,
+        )
+        if provider != "gpt_sovits" or not bool(
+            self.config.get("gpt_quality_retry_enabled", True)
+        ):
+            return first
+
+        expected = _estimated_speech_seconds(text)
+        try:
+            with wave.open(first, "rb") as handle:
+                first_duration = handle.getnframes() / handle.getframerate()
+        except (OSError, wave.Error):
+            return first
+        ratio = first_duration / expected
+        if 0.72 <= ratio <= 1.45:
+            return first
+
+        retry = await self._synthesize_provider(
+            text,
+            style,
+            generation=self._gpt_generation(
+                int(self.config.get("gpt_retry_seed", 2027))
+            ),
+        )
+        try:
+            with wave.open(retry, "rb") as handle:
+                retry_duration = handle.getnframes() / handle.getframerate()
+        except (OSError, wave.Error):
+            return first
+        retry_ratio = retry_duration / expected
+        chosen = min(
+            (first, retry),
+            key=lambda path: abs(
+                math.log(
+                    max(
+                        0.01,
+                        (
+                            first_duration
+                            if path == first
+                            else retry_duration
+                        )
+                        / expected,
+                    )
+                )
+            ),
+        )
+        logger.info(
+            "tafei_voice: quality retry ratio %.2f -> %.2f",
+            ratio,
+            retry_ratio,
+        )
+        return chosen
 
     async def _synthesize(self, text: str, style: str | None = None) -> str:
         self._refresh_binding()
         style = style or _pick_style(text)
+        provider = str(self.binding.get("provider") or "")
+        if (
+            provider != "gpt_sovits"
+            or not bool(self.config.get("gpt_internal_split_enabled", False))
+        ):
+            return await self._synthesize_quality_checked(text, style)
         pauses = _normalize_pause_settings(
             self.config.get("punctuation_pauses_ms")
         )
@@ -676,12 +790,15 @@ class TafeiVoice(star.Star):
         if not clauses:
             raise RuntimeError("这段内容没有可朗读的文字")
         if len(clauses) == 1:
-            return await self._synthesize_provider(clauses[0][0], style)
+            return await self._synthesize_quality_checked(
+                clauses[0][0],
+                style,
+            )
 
         audio_paths = []
         for spoken, _pause in clauses:
             audio_paths.append(
-                await self._synthesize_provider(spoken, style)
+                await self._synthesize_quality_checked(spoken, style)
             )
         identity = {
             "provider": self.binding.get("provider"),
@@ -689,6 +806,7 @@ class TafeiVoice(star.Star):
             "style": style,
             "text": text,
             "pauses": pauses,
+            "generation": self._gpt_generation(),
             "parts": [
                 [
                     os.path.basename(path),
@@ -717,10 +835,41 @@ class TafeiVoice(star.Star):
         )
 
     async def _synthesize_gpt_sovits(
-        self, text: str, style: str | None = None
+        self,
+        text: str,
+        style: str | None = None,
+        *,
+        generation: dict | None = None,
     ) -> str:
         manifest = self._load_manifest()
         style = style or _pick_style(text)
+        generation = generation or {}
+        settings = {
+            "text_split_method": str(
+                generation.get(
+                    "text_split_method",
+                    self.config.get("gpt_text_split_method", "cut0"),
+                )
+            ),
+            "speed_factor": float(
+                generation.get(
+                    "speed_factor",
+                    self.config.get("gpt_speed_factor", 1.0),
+                )
+            ),
+            "temperature": float(
+                generation.get(
+                    "temperature",
+                    self.config.get("gpt_temperature", 0.82),
+                )
+            ),
+            "seed": int(
+                generation.get(
+                    "seed",
+                    self.config.get("gpt_seed", 2026),
+                )
+            ),
+        }
         ref_id = self.binding.get("style_refs", {}).get(style, "ref_06")
         ref_entry = next(
             (item for item in manifest.get("references", []) if item["id"] == ref_id),
@@ -739,6 +888,7 @@ class TafeiVoice(star.Star):
             text=text,
             manifest_path=self.manifest_path,
             reference_path=ref_audio,
+            generation=settings,
         )
         output_path = os.path.join(self.cache_dir, f"{cache_key}.wav")
         if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
@@ -752,11 +902,11 @@ class TafeiVoice(star.Star):
             "prompt_text": ref_entry["text"],
             "top_k": 15,
             "top_p": 1.0,
-            "temperature": 0.8,
-            "text_split_method": "cut5",
+            "temperature": settings["temperature"],
+            "text_split_method": settings["text_split_method"],
             "batch_size": 1,
-            "speed_factor": 1.0,
-            "seed": 2026,
+            "speed_factor": settings["speed_factor"],
+            "seed": settings["seed"],
             "media_type": "wav",
             "streaming_mode": False,
             "parallel_infer": False,

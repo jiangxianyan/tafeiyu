@@ -27,6 +27,11 @@ previous persona's model path.
 - Each sentence selects its own emotion reference, and punctuation pauses are
   configurable through `punctuation_pauses_ms` (`comma`, `ellipsis`,
   `exclamation`, `question`, `period`, `semicolon`, `colon`, and `default`)
+- GPT-SoVITS uses `cut0` for each semantic sentence by default, so the plugin
+  does not split the same text again inside the model.
+- Speech defaults to speed `1.04` and temperature `0.84` for a livelier read.
+  If generated duration is implausibly short or long, one retry with a second
+  seed is generated and the closer result is kept.
 
 Admin commands:
 
