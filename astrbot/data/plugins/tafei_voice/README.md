@@ -22,6 +22,11 @@ previous persona's model path.
 - Multi-sentence replies are split into ordered text/voice pairs. Private
   owner replies may produce at most two voice messages; group auto replies
   remain limited to one
+- The first clip is sent without waiting for the second. The second is
+  generated in the background while the first text/voice pair is delivered.
+- Each sentence selects its own emotion reference, and punctuation pauses are
+  configurable through `punctuation_pauses_ms` (`comma`, `ellipsis`,
+  `exclamation`, `question`, `period`, `semicolon`, `colon`, and `default`)
 
 Admin commands:
 

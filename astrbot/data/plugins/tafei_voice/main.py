@@ -9,6 +9,7 @@ import socket
 import subprocess
 import time
 import unicodedata
+import wave
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
@@ -17,6 +18,7 @@ import requests
 from astrbot.api import logger, star
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.message_components import Image, Plain, Record
+from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.star.filter.command import GreedyStr
 
 PLUGIN_NAME = "tafei_voice"
@@ -25,6 +27,17 @@ MAX_CACHE_FILES = 200
 FEIYU_JOB_TIMEOUT = 180
 MAX_AUDIO_BYTES = 128 * 1024 * 1024
 MAX_VOICE_SEGMENTS = 2
+PENDING_VOICE_EXTRA = "_tafei_voice_pending_prefetch"
+DEFAULT_PUNCTUATION_PAUSES_MS = {
+    "comma": 140,
+    "ellipsis": 520,
+    "exclamation": 260,
+    "question": 320,
+    "period": 420,
+    "semicolon": 240,
+    "colon": 180,
+    "default": 200,
+}
 
 
 def _data_dir() -> str:
@@ -156,12 +169,132 @@ def _split_voice_segments(text: str, max_segments: int = 2) -> list[str]:
     return merged
 
 
+def _normalize_pause_settings(value) -> dict[str, int]:
+    settings = dict(DEFAULT_PUNCTUATION_PAUSES_MS)
+    if isinstance(value, dict):
+        for key in settings:
+            if key not in value:
+                continue
+            try:
+                settings[key] = max(0, min(2000, int(value[key])))
+            except (TypeError, ValueError):
+                continue
+    return settings
+
+
+def _pause_after_text(text: str, pauses: dict[str, int]) -> int:
+    tail = (text or "").rstrip()
+    while tail and (
+        unicodedata.category(tail[-1]) in {"So", "Sk"}
+        or tail[-1] in "\ufe0f\u200d"
+    ):
+        tail = tail[:-1].rstrip()
+    tail = re.sub(r"[\s\"'“”‘’）)\]】》]+$", "", tail)
+    if re.search(r"(?:…+|\.{3,})$", tail):
+        kind = "ellipsis"
+    elif tail.endswith(("！", "!")):
+        kind = "exclamation"
+    elif tail.endswith(("？", "?")):
+        kind = "question"
+    elif tail.endswith(("，", ",", "、")):
+        kind = "comma"
+    elif tail.endswith(("；", ";")):
+        kind = "semicolon"
+    elif tail.endswith(("：", ":")):
+        kind = "colon"
+    elif tail.endswith("。"):
+        kind = "period"
+    else:
+        return int(pauses.get("default", 0))
+    return int(pauses.get(kind, pauses.get("default", 0)))
+
+
+def _split_pause_clauses(text: str) -> list[str]:
+    """Keep punctuation with each clause so every pause kind stays distinct."""
+
+    cleaned = re.sub(r"\s+", " ", text or "").strip()
+    if not cleaned:
+        return []
+    clauses = re.findall(
+        r".+?(?:[，,、；;：:！!？?。…]+|$)",
+        cleaned,
+        flags=re.DOTALL,
+    )
+    return [clause.strip() for clause in clauses if clause.strip()]
+
+
+def _concat_wav_with_pauses(
+    audio_paths: list[str],
+    pause_ms: list[int],
+    output_path: str,
+) -> str:
+    """Join WAV clauses with deterministic silence instead of random waits."""
+
+    if not audio_paths:
+        raise ValueError("no audio files to concatenate")
+    if len(audio_paths) == 1:
+        return audio_paths[0]
+    if len(pause_ms) < len(audio_paths):
+        pause_ms = [*pause_ms, *([0] * (len(audio_paths) - len(pause_ms)))]
+
+    with wave.open(audio_paths[0], "rb") as first:
+        expected = (
+            first.getnchannels(),
+            first.getsampwidth(),
+            first.getframerate(),
+            first.getcomptype(),
+        )
+
+    temp_path = output_path + ".tmp"
+    try:
+        with wave.open(temp_path, "wb") as output:
+            output.setnchannels(expected[0])
+            output.setsampwidth(expected[1])
+            output.setframerate(expected[2])
+            output.setcomptype(expected[3], "not compressed")
+            for index, path in enumerate(audio_paths):
+                with wave.open(path, "rb") as source:
+                    current = (
+                        source.getnchannels(),
+                        source.getsampwidth(),
+                        source.getframerate(),
+                        source.getcomptype(),
+                    )
+                    if current != expected:
+                        raise ValueError("TTS WAV formats do not match")
+                    output.writeframes(source.readframes(source.getnframes()))
+                if index >= len(audio_paths) - 1:
+                    continue
+                silence_frames = int(
+                    expected[2]
+                    * max(0, int(pause_ms[index]))
+                    / 1000
+                )
+                silence = b"\x00" * (
+                    silence_frames * expected[0] * expected[1]
+                )
+                output.writeframes(silence)
+        os.replace(temp_path, output_path)
+    finally:
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
+    return output_path
+
+
 def _pick_style(text: str) -> str:
-    if re.search(r"生气|讨厌|烦|气死|不理你|滚|笨蛋", text):
+    if re.search(r"生气|讨厌|烦|气死|不理你|滚|笨蛋|坏蛋|才不要", text):
         return "annoyed"
-    if re.search(r"累|难过|哭|晚安|抱抱|心疼|辛苦了|乖", text):
+    if re.search(
+        r"累|难过|哭|晚安|想你|陪着|抱抱|心疼|辛苦|乖|别怕|没事的",
+        text,
+    ):
         return "soft"
-    if re.search(r"哈哈|好耶|开心|太棒|笑死|喜欢|好玩|冲|赢了", text):
+    if re.search(
+        r"哈哈|嘿嘿|好耶|开心|太棒|笑死|喜欢|好玩|冲|赢了|太好了",
+        text,
+    ):
         return "happy"
     if re.search(r"喵|呀|诶|才不|哼哼|可爱|贴贴", text):
         return "cute"
@@ -207,6 +340,7 @@ class TafeiVoice(star.Star):
             "force_max_chars": 300,
             "sentence_split_enabled": True,
             "max_voice_segments": MAX_VOICE_SEGMENTS,
+            "punctuation_pauses_ms": DEFAULT_PUNCTUATION_PAUSES_MS,
             "tts_api": os.environ.get("TAFEI_TTS_API", DEFAULT_API).rstrip("/"),
             "manifest_path": "",
             "tts_config_path": "",
@@ -272,6 +406,9 @@ class TafeiVoice(star.Star):
             for keyword in defaults.get("force_voice_keywords", [])
             if str(keyword).strip()
         ]
+        defaults["punctuation_pauses_ms"] = _normalize_pause_settings(
+            defaults.get("punctuation_pauses_ms")
+        )
         return defaults
 
     def _save_config(self) -> None:
@@ -497,7 +634,11 @@ class TafeiVoice(star.Star):
         finally:
             output.close()
 
-    async def _synthesize(self, text: str, style: str | None = None) -> str:
+    async def _synthesize_provider(
+        self,
+        text: str,
+        style: str,
+    ) -> str:
         self._refresh_binding()
         provider = str(self.binding.get("provider") or "")
         if provider == "feiyu_voice_http":
@@ -505,6 +646,62 @@ class TafeiVoice(star.Star):
         if provider != "gpt_sovits":
             raise RuntimeError(f"{self.active_persona_name}没有绑定可用的声线")
         return await self._synthesize_gpt_sovits(text, style)
+
+    async def _synthesize(self, text: str, style: str | None = None) -> str:
+        self._refresh_binding()
+        style = style or _pick_style(text)
+        pauses = _normalize_pause_settings(
+            self.config.get("punctuation_pauses_ms")
+        )
+        clauses = []
+        for clause in _split_pause_clauses(text):
+            spoken = _speech_text(clause)
+            if spoken:
+                clauses.append(
+                    (spoken, _pause_after_text(clause, pauses))
+                )
+        if not clauses:
+            raise RuntimeError("这段内容没有可朗读的文字")
+        if len(clauses) == 1:
+            return await self._synthesize_provider(clauses[0][0], style)
+
+        audio_paths = []
+        for spoken, _pause in clauses:
+            audio_paths.append(
+                await self._synthesize_provider(spoken, style)
+            )
+        identity = {
+            "provider": self.binding.get("provider"),
+            "persona": self.active_persona_id,
+            "style": style,
+            "text": text,
+            "pauses": pauses,
+            "parts": [
+                [
+                    os.path.basename(path),
+                    os.path.getsize(path),
+                    os.path.getmtime(path),
+                ]
+                for path in audio_paths
+            ],
+        }
+        cache_key = hashlib.sha256(
+            json.dumps(
+                identity,
+                ensure_ascii=False,
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        output_path = os.path.join(self.cache_dir, f"{cache_key}.wav")
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
+            return output_path
+        pause_ms = [pause for _spoken, pause in clauses]
+        return await asyncio.to_thread(
+            _concat_wav_with_pauses,
+            audio_paths,
+            pause_ms,
+            output_path,
+        )
 
     async def _synthesize_gpt_sovits(
         self, text: str, style: str | None = None
@@ -808,32 +1005,92 @@ class TafeiVoice(star.Star):
             for segment in segments:
                 spoken = _speech_text(segment)
                 if spoken:
-                    speech_segments.append((segment, spoken))
+                    speech_segments.append(
+                        (segment, spoken, _pick_style(segment))
+                    )
             if not speech_segments:
                 return
-            audio_paths = []
-            for _segment, spoken in speech_segments:
-                audio_paths.append(await self._synthesize(spoken))
+            first_text, first_spoken, first_style = speech_segments[0]
+            first_audio = await self._synthesize(
+                first_spoken,
+                style=first_style,
+            )
             prefix = [
                 segment for segment in chain if not isinstance(segment, Plain)
             ]
-            paired = list(prefix)
-            for (segment, _spoken), audio_path in zip(
-                speech_segments,
-                audio_paths,
-            ):
-                paired.append(Plain(segment))
-                paired.append(
-                    Record.fromFileSystem(audio_path, text=segment)
+            first_pair = [
+                Plain(first_text),
+                Record.fromFileSystem(first_audio, text=first_text),
+            ]
+            if len(speech_segments) > 1:
+                second_text, second_spoken, second_style = speech_segments[1]
+                background_task = asyncio.create_task(
+                    self._synthesize(second_spoken, style=second_style)
                 )
-            chain[:] = paired
+                pauses = _normalize_pause_settings(
+                    self.config.get("punctuation_pauses_ms")
+                )
+                event.set_extra(
+                    PENDING_VOICE_EXTRA,
+                    {
+                        "task": background_task,
+                        "text": second_text,
+                        "style": second_style,
+                        "pause_after_ms": _pause_after_text(
+                            first_text,
+                            pauses,
+                        ),
+                    },
+                )
+            chain[:] = [*prefix, *first_pair]
             logger.info(
-                "tafei_voice: attached %s voice message(s): %s",
-                len(audio_paths),
-                ", ".join(os.path.basename(path) for path in audio_paths),
+                "tafei_voice: first voice ready style=%s file=%s; "
+                "second_prefetched=%s",
+                first_style,
+                os.path.basename(first_audio),
+                len(speech_segments) > 1,
             )
         except Exception as error:
             logger.warning(f"tafei_voice: synthesis skipped: {error}")
+
+    @filter.after_message_sent()
+    async def send_prefetched_voice(self, event: AstrMessageEvent) -> None:
+        pending = event.get_extra(PENDING_VOICE_EXTRA, None)
+        if not isinstance(pending, dict):
+            return
+        event.set_extra(PENDING_VOICE_EXTRA, None)
+        task = pending.get("task")
+        text = str(pending.get("text") or "")
+        if not text or task is None:
+            return
+        try:
+            audio_path = await task
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            logger.warning(
+                "tafei_voice: prefetched second voice failed: %s",
+                error,
+            )
+            await event.send(MessageChain([Plain(text)]))
+            return
+
+        pause_ms = max(0, int(pending.get("pause_after_ms") or 0))
+        if pause_ms:
+            await asyncio.sleep(pause_ms / 1000)
+        await event.send(
+            MessageChain(
+                [
+                    Plain(text),
+                    Record.fromFileSystem(audio_path, text=text),
+                ]
+            )
+        )
+        logger.info(
+            "tafei_voice: sent prefetched second voice style=%s file=%s",
+            pending.get("style"),
+            os.path.basename(audio_path),
+        )
 
     @filter.on_llm_request()
     async def inject_voice_capability(self, event: AstrMessageEvent, req) -> None:

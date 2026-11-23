@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import tempfile
 import types
 import unittest
+import wave
 from pathlib import Path
 from unittest.mock import AsyncMock, call, patch
 
@@ -59,6 +61,7 @@ class FakeEvent:
         self.message_obj = types.SimpleNamespace(
             sender=types.SimpleNamespace(user_id=sender),
         )
+        self.sent = []
 
     def is_private_chat(self) -> bool:
         return self.private
@@ -81,6 +84,12 @@ class FakeEvent:
     def set_extra(self, key, value) -> None:
         self.extra[key] = value
 
+    def get_extra(self, key, default=None):
+        return self.extra.get(key, default)
+
+    async def send(self, message) -> None:
+        self.sent.append(message)
+
 
 @unittest.skipUnless(ASTRBOT_AVAILABLE, "AstrBot runtime is not installed")
 class VoiceRoutingTest(unittest.TestCase):
@@ -93,6 +102,9 @@ class VoiceRoutingTest(unittest.TestCase):
             "force_max_chars": 300,
             "owner_user_ids": ["10001"],
             "force_voice_keywords": ["发语音", "说话"],
+            "punctuation_pauses_ms": {
+                key: 0 for key in VOICE.DEFAULT_PUNCTUATION_PAUSES_MS
+            },
         }
         plugin.binding = {}
         return plugin
@@ -110,7 +122,10 @@ class VoiceRoutingTest(unittest.TestCase):
         ):
             asyncio.run(plugin.add_voice(event))
 
-        plugin._synthesize.assert_awaited_once_with("喵" * 72)
+        plugin._synthesize.assert_awaited_once_with(
+            "喵" * 72,
+            style="cute",
+        )
         self.assertEqual(len(event.result.chain), 2)
 
     def test_owner_can_be_found_in_private_session_id(self) -> None:
@@ -178,7 +193,7 @@ class VoiceRoutingTest(unittest.TestCase):
         )
         self.assertEqual(parts, ["第一句。", "第二句！第三句？"])
 
-    def test_owner_reply_builds_ordered_text_voice_pairs(self) -> None:
+    def test_owner_reply_sends_first_then_prefetched_second(self) -> None:
         plugin = self.make_plugin()
         plugin.config["max_voice_segments"] = 2
         plugin.config["sentence_split_enabled"] = True
@@ -188,38 +203,77 @@ class VoiceRoutingTest(unittest.TestCase):
         )
         event = FakeEvent(
             text=(
-                "诶，塔菲在呢，专门给雏草姬说一句喵😉 "
-                "准备好了没，听完给点反应啊！"
+                "晚安，辛苦啦。"
+                "好耶！太棒了！"
             )
         )
 
         def make_record(path, text=None):
             return types.SimpleNamespace(path=path, text=text)
 
+        async def run_case():
+            await plugin.add_voice(event)
+            self.assertEqual(len(event.result.chain), 2)
+            self.assertEqual(event.result.chain[0].text, "晚安，辛苦啦。")
+            self.assertEqual(event.result.chain[1].path, "C:/tmp/first.wav")
+            pending = event.get_extra(VOICE.PENDING_VOICE_EXTRA)
+            self.assertIsNotNone(pending)
+            self.assertEqual(pending["text"], "好耶！太棒了！")
+            await plugin.send_prefetched_voice(event)
+
         with patch.object(
             VOICE.Record,
             "fromFileSystem",
             side_effect=make_record,
         ):
-            asyncio.run(plugin.add_voice(event))
+            asyncio.run(run_case())
 
-        self.assertEqual(len(event.result.chain), 4)
-        self.assertEqual(
-            event.result.chain[0].text,
-            "诶，塔菲在呢，专门给雏草姬说一句喵😉",
-        )
-        self.assertEqual(event.result.chain[1].path, "C:/tmp/first.wav")
-        self.assertEqual(
-            event.result.chain[2].text,
-            "准备好了没，听完给点反应啊！",
-        )
-        self.assertEqual(event.result.chain[3].path, "C:/tmp/second.wav")
+        self.assertEqual(len(event.sent), 1)
+        sent_chain = event.sent[0].chain
+        self.assertEqual(sent_chain[0].text, "好耶！太棒了！")
+        self.assertEqual(sent_chain[1].path, "C:/tmp/second.wav")
         plugin._synthesize.assert_has_awaits(
             [
-                call("诶，塔菲在呢，专门给雏草姬说一句喵"),
-                call("准备好了没，听完给点反应啊！"),
+                call("晚安，辛苦啦。", style="soft"),
+                call("好耶！太棒了！", style="happy"),
             ]
         )
+
+    def test_punctuation_controls_pause_duration(self) -> None:
+        pauses = VOICE._normalize_pause_settings(
+            {
+                "comma": 120,
+                "ellipsis": 600,
+                "exclamation": 250,
+            }
+        )
+        self.assertEqual(VOICE._pause_after_text("诶，", pauses), 120)
+        self.assertEqual(VOICE._pause_after_text("等等……", pauses), 600)
+        self.assertEqual(VOICE._pause_after_text("好耶！", pauses), 250)
+        self.assertEqual(VOICE._pause_after_text("好耶！😉", pauses), 250)
+        self.assertEqual(
+            VOICE._split_pause_clauses("诶，真的吗……好耶！"),
+            ["诶，", "真的吗……", "好耶！"],
+        )
+
+    def test_wav_concatenation_inserts_configured_silence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = []
+            for index in range(3):
+                path = str(Path(temp_dir) / f"part-{index}.wav")
+                with wave.open(path, "wb") as handle:
+                    handle.setnchannels(1)
+                    handle.setsampwidth(2)
+                    handle.setframerate(1000)
+                    handle.writeframes(b"\x00\x01" * 1000)
+                paths.append(path)
+            output = VOICE._concat_wav_with_pauses(
+                paths,
+                [100, 200, 0],
+                str(Path(temp_dir) / "joined.wav"),
+            )
+            with wave.open(output, "rb") as handle:
+                self.assertEqual(handle.getnframes(), 3300)
 
 
 if __name__ == "__main__":

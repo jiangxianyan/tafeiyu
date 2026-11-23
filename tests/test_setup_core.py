@@ -162,6 +162,7 @@ class SetupCoreTest(unittest.TestCase):
                 )
 
             deploy = json.loads(deploy_path.read_text(encoding="utf-8"))
+            config = json.loads(config_path.read_text(encoding="utf-8"))
             group = json.loads(group_path.read_text(encoding="utf-8"))
             voice = json.loads(voice_path.read_text(encoding="utf-8"))
             self.assertEqual(result["owner_qq"], "987654")
@@ -176,6 +177,10 @@ class SetupCoreTest(unittest.TestCase):
             self.assertEqual(
                 group["image_message_force_reply_user_ids"],
                 ["987654"],
+            )
+            self.assertEqual(
+                config["platform_settings"]["segmented_reply"]["interval"],
+                "0,0",
             )
             self.assertEqual(voice["owner_user_ids"], ["987654"])
 

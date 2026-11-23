@@ -210,6 +210,10 @@ def _sanitize_live_defaults(stage: Path) -> None:
             platform = cmd.setdefault("platform_settings", {})
             platform["id_whitelist"] = []
             platform["path_mapping"] = []
+            segmented = platform.setdefault("segmented_reply", {})
+            segmented["enable"] = True
+            segmented["interval_method"] = "random"
+            segmented["interval"] = "0,0"
             for adapter in cmd.get("platform", []):
                 if isinstance(adapter, dict):
                     adapter["ws_reverse_token"] = ""

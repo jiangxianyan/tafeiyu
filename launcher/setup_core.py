@@ -495,6 +495,10 @@ def apply_qq_and_groups(
     platform["enable_id_white_list"] = True
     platform["id_whitelist"] = list(dict.fromkeys([owner_qq, *white]))
     platform["wl_ignore_admin_on_group"] = False
+    segmented = platform.setdefault("segmented_reply", {})
+    segmented["enable"] = True
+    segmented["interval_method"] = "random"
+    segmented["interval"] = "0,0"
     cmd["admins_id"] = [owner_qq]
     _save_json(ASTRBOT_CONFIG, cmd)
 
