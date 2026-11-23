@@ -372,15 +372,21 @@ def _apply_vision_provider_id(provider_id: str) -> None:
 
 
 def _existing_path(value) -> Path | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
     try:
-        path = Path(str(value or "")).expanduser().resolve()
+        path = Path(raw).expanduser().resolve()
     except OSError:
         return None
     return path if path.exists() else None
 
 
 def _find_astrbot_exe(current: str = "") -> str:
-    candidates: list[Path] = []
+    candidates: list[Path] = [
+        ROOT / "runtime" / "astrbot-tool" / "Scripts" / "astrbot.exe",
+        ROOT / "runtime" / "astrbot-tool" / "astrbot.exe",
+    ]
     existing = _existing_path(current)
     if existing is not None:
         candidates.append(existing)
@@ -389,8 +395,6 @@ def _find_astrbot_exe(current: str = "") -> str:
         candidates.append(Path(command))
     candidates.extend(
         [
-            ROOT / "runtime" / "astrbot-tool" / "Scripts" / "astrbot.exe",
-            ROOT / "runtime" / "astrbot-tool" / "astrbot.exe",
             Path.home() / ".local" / "bin" / "astrbot.exe",
             Path(os.environ.get("APPDATA", ""))
             / "uv"
@@ -409,9 +413,24 @@ def _find_astrbot_exe(current: str = "") -> str:
 def _find_napcat_paths(deploy: dict) -> tuple[str, str]:
     current_root = _existing_path(deploy.get("napcat_root"))
     bundled_root = ROOT / "runtime" / "napcat-shell"
-    root = current_root or (ROOT / "napcat")
-    if not root.exists() and bundled_root.exists():
-        root = bundled_root
+    project_root = ROOT / "napcat"
+
+    def has_boot(path: Path | None) -> bool:
+        if path is None or not path.is_dir():
+            return False
+        return (path / "NapCatWinBootMain.exe").is_file() or any(
+            (candidate / "NapCatWinBootMain.exe").is_file()
+            for candidate in path.glob("NapCat*.Shell")
+        )
+
+    root = next(
+        (
+            candidate
+            for candidate in (current_root, bundled_root, project_root)
+            if has_boot(candidate)
+        ),
+        current_root or bundled_root or project_root,
+    )
     candidates = []
     current_shell = _existing_path(deploy.get("napcat_shell_dir"))
     if current_shell is not None:

@@ -27,6 +27,21 @@ def write_json(path: Path, value) -> None:
 
 
 class SetupCoreTest(unittest.TestCase):
+    def test_empty_paths_do_not_resolve_to_current_directory(self) -> None:
+        self.assertIsNone(setup_core._existing_path(""))
+        self.assertIsNone(setup_core._existing_path(None))
+
+    def test_bundled_napcat_is_found_from_a_clean_install(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            shell = root / "runtime" / "napcat-shell"
+            shell.mkdir(parents=True)
+            (shell / "NapCatWinBootMain.exe").write_bytes(b"test")
+            with patch.object(setup_core, "ROOT", root):
+                napcat_root, shell_dir = setup_core._find_napcat_paths({})
+            self.assertEqual(Path(napcat_root), shell.resolve())
+            self.assertEqual(Path(shell_dir), shell.resolve())
+
     def test_existing_complete_install_skips_wizard(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp = Path(temp_dir)

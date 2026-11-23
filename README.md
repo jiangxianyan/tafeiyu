@@ -72,7 +72,7 @@ API Key、QQ 会话、聊天数据库、日志、声线权重和参考音频都�
 2. 选择带有 `tafeiyu-offline-part*.zip` 的完整运行时分卷。只有 `tafeiyu-source-part*.zip` 的 Release 是源码包，不能直接运行桌面客户端。
 3. 按当前 Release 和 `SHA256SUMS.json` 列出全部分卷下载，核对后解压到同一目录；不要只解压第一个分卷。
 4. 预留约 15 GB 以上磁盘空间，解压到可写目录，建议使用 `D:\TafeiYu` 这类简单 ASCII 路径，不建议放入 `C:\Program Files`。
-5. 如果包内有 Python 安装器，双击 `安装塔菲鱼.bat`；否则安装 Python 3.12 后运行 `启动塔菲.bat`。
+5. 如果包内有 Python 安装器，直接双击 `安装塔菲鱼.bat`；否则先安装 Python 3.12，再运行 `安装塔菲鱼.bat` 安装启动器依赖并启动。缺少正确的 Python 版本时，脚本会打开官方下载页。
 6. 按五步配置向导填写模型、机器人 QQ、主人 QQ、群聊名单，并可选导入自己的声线。
 7. 扫码登录 QQ，等待 AstrBot、NapCat 和本地语音服务全部在线。
 
@@ -82,7 +82,7 @@ API Key、QQ 会话、聊天数据库、日志、声线权重和参考音频都�
 首次运行需要准备：
 
 - Windows 10/11；
-- Python 3.12（如果下载包中没有 `runtime\python-installer.exe`）；
+- Python 3.12（如果下载包中没有 `runtime\python-installer.exe`；暂不支持 Python 3.13）；
 - 一个 OpenAI 兼容模型服务或 API Key；
 - 一个独立的机器人 QQ 号；
 - 可选：你有权使用的 GPT-SoVITS 权重与参考音频。

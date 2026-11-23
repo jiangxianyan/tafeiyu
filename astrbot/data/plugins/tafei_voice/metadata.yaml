@@ -2,7 +2,7 @@ name: tafei_voice
 display_name: 塔菲语音
 desc: 按当前人格绑定的声线生成语音，支持本地 GPT-SoVITS 与外部 HTTP 服务
 help: 管理员可用 /tf_voice_on、/tf_voice_off、/tf_voice_p、/tf_voice 测试文字
-version: 1.0.3
+version: 1.0.4
 author: local
 repo: ""
 astrbot_version: ">=4.11.0"

@@ -144,6 +144,19 @@ class VoiceRoutingTest(unittest.TestCase):
         )
         self.assertFalse(plugin._is_owner_private_chat(event))
 
+    def test_uninstalled_persona_voice_stays_disabled(self) -> None:
+        plugin = self.make_plugin()
+        plugin._refresh_binding = lambda: {
+            "provider": "gpt_sovits",
+            "enabled": True,
+            "manifest_path": "C:/missing/manifest.json",
+            "tts_config_path": "C:/missing/tts.yaml",
+        }
+        plugin.binding = plugin._refresh_binding()
+        plugin.manifest_path = plugin.binding["manifest_path"]
+        plugin.tts_config_path = plugin.binding["tts_config_path"]
+        self.assertFalse(plugin._voice_enabled())
+
     def test_cache_key_changes_with_persona_and_reference(self) -> None:
         manifest = {
             "gpt_model": "gpt.ckpt",

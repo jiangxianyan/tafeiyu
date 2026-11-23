@@ -466,9 +466,22 @@ class TafeiVoice(star.Star):
 
     def _voice_enabled(self) -> bool:
         self._refresh_binding()
-        return bool(self.config.get("enabled", True)) and bool(
-            self.binding.get("enabled", False)
-        )
+        if not self.config.get("enabled", True) or not self.binding.get(
+            "enabled",
+            False,
+        ):
+            return False
+        provider = str(self.binding.get("provider") or "")
+        if provider == "gpt_sovits":
+            return bool(
+                self.manifest_path
+                and self.tts_config_path
+                and os.path.isfile(self.manifest_path)
+                and os.path.isfile(self.tts_config_path)
+            )
+        if provider == "feiyu_voice_http":
+            return bool(str(self.binding.get("base_url") or "").strip())
+        return False
 
     def _load_manifest(self) -> dict:
         if not self.manifest_path or not os.path.isfile(self.manifest_path):

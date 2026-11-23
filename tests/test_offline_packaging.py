@@ -165,13 +165,20 @@ class OfflinePackagingTest(unittest.TestCase):
             root = Path(temp_dir)
             transient = root / ".bot_runtime" / "watchdog.heartbeat"
             old_dist = root / "dist-final" / "checksums.json"
+            stale_launcher = root / "legacy_launchers" / "start7.ps1"
+            stray_file = root / "500')"
             transient.parent.mkdir(parents=True)
             old_dist.parent.mkdir(parents=True)
+            stale_launcher.parent.mkdir(parents=True)
             transient.write_text("1", encoding="ascii")
             old_dist.write_text("{}", encoding="utf-8")
+            stale_launcher.write_text("old", encoding="utf-8")
+            stray_file.write_text("stray", encoding="utf-8")
             with patch.object(PACKAGING, "ROOT", root):
                 self.assertTrue(PACKAGING._should_skip(transient))
                 self.assertTrue(PACKAGING._should_skip(old_dist))
+                self.assertTrue(PACKAGING._should_skip(stale_launcher))
+                self.assertTrue(PACKAGING._should_skip(stray_file))
 
     def test_astrbot_plugins_are_included_but_private_voice_data_is_not(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -220,6 +227,26 @@ class OfflinePackagingTest(unittest.TestCase):
                 "python = 'C:\\Users\\developer\\Python312\\python.exe'\n",
                 encoding="utf-8",
             )
+            nested_data = (
+                source
+                / "Lib"
+                / "site-packages"
+                / "torch"
+                / "utils"
+                / "data"
+                / "__init__.py"
+            )
+            nested_data.parent.mkdir(parents=True)
+            nested_data.write_text("VALUE = 1\n", encoding="utf-8")
+            (source / "data").mkdir()
+            (source / "data" / "private.json").write_text(
+                "{}",
+                encoding="utf-8",
+            )
+            (scripts / "activate.bat").write_text(
+                "set VIRTUAL_ENV=C:\\Users\\developer\n",
+                encoding="utf-8",
+            )
             (source / "marker.txt").write_text("ok", encoding="utf-8")
             destination = temp / "stage"
 
@@ -234,6 +261,19 @@ class OfflinePackagingTest(unittest.TestCase):
             self.assertNotIn("C:\\Users\\developer", config)
             self.assertNotIn("home =", config)
             self.assertFalse((copied / "uv-receipt.toml").exists())
+            self.assertFalse((copied / "Scripts" / "activate.bat").exists())
+            self.assertTrue(
+                (
+                    copied
+                    / "Lib"
+                    / "site-packages"
+                    / "torch"
+                    / "utils"
+                    / "data"
+                    / "__init__.py"
+                ).is_file()
+            )
+            self.assertFalse((copied / "data").exists())
             self.assertTrue((copied / "marker.txt").is_file())
 
     def test_voice_runtime_keeps_base_but_excludes_persona_weights(self) -> None:
@@ -268,6 +308,56 @@ class OfflinePackagingTest(unittest.TestCase):
                 (copied / "GPT_SoVITS" / "SoVITS_weights_v2").exists()
             )
             self.assertFalse((copied / "voices").exists())
+
+    def test_voice_defaults_use_the_bundled_base_model(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stage = Path(temp_dir)
+            config = (
+                stage
+                / "runtime"
+                / "GPT-SoVITS-run"
+                / "GPT_SoVITS"
+                / "configs"
+                / "tts_infer.yaml"
+            )
+            config.parent.mkdir(parents=True)
+            config.write_text(
+                "custom:\n"
+                "  version: v2\n"
+                "  t2s_weights_path: custom/persona.ckpt\n"
+                "  vits_weights_path: custom/persona.pth\n"
+                "v2:\n"
+                "  bert_base_path: base/bert\n"
+                "  cnhuhbert_base_path: base/hubert\n"
+                "  t2s_weights_path: base/model.ckpt\n"
+                "  vits_weights_path: base/model.pth\n"
+                "  version: v2\n",
+                encoding="utf-8",
+            )
+
+            PACKAGING._sanitize_voice_defaults(stage)
+
+            import yaml
+
+            data = yaml.safe_load(config.read_text(encoding="utf-8"))
+            self.assertEqual(
+                data["custom"]["t2s_weights_path"],
+                "base/model.ckpt",
+            )
+            self.assertEqual(
+                data["custom"]["vits_weights_path"],
+                "base/model.pth",
+            )
+            self.assertNotIn("persona", config.read_text(encoding="utf-8"))
+
+    def test_generated_installer_requires_python_312(self) -> None:
+        installer = PACKAGING._installer_batch()
+        start = (ROOT / "启动塔菲.bat").read_text(encoding="utf-8")
+        self.assertIn("py -3.12", installer)
+        self.assertIn("py -3.12", start)
+        self.assertNotIn("Python313", start)
+        self.assertNotIn("py -3 ", start)
+        self.assertNotIn("\r\r\n", installer)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ EXCLUDED_TOP_LEVEL = {
     "backup_20261024_013726",
     "downloads",
     "dist",
+    "legacy_launchers",
     "local",
     "napcat",
     "stickers",
@@ -53,6 +54,14 @@ EXCLUDED_NAMES = {
     "start_napcat.bat",
     "tafei.env.json",
     "watchdog.heartbeat",
+    "500')",
+    "apply_pin.ps1",
+    "apply_pin2.ps1",
+    "grant_acl.ps1",
+    "grant_acl2.ps1",
+    "launch_wx.ps1",
+    "patch_pin.ps1",
+    "pin_fixed.ps1",
 }
 MAX_SPLIT_BYTES = 1800 * 1024 * 1024
 
@@ -146,38 +155,60 @@ def _copy_runtime(source: str | None, destination: Path, label: str) -> None:
         raise FileNotFoundError(f"{label}不存在：{path}")
     target = destination / "runtime" / label
     if path.is_dir():
-        ignored = [
-            ".git",
-            ".github",
-            "__pycache__",
-            "*.db",
-            "*.db-shm",
-            "*.db-wal",
-            "*.pyc",
-            "*.log",
-            "cache",
-            "config",
-            "data",
-            "log",
-            "logs",
-            "output",
-            "outputs",
-            "temp",
-        ]
-        if label == "GPT-SoVITS-run":
-            ignored.extend(
-                [
-                    "voices",
+        def runtime_ignore(directory, names):
+            current = Path(directory)
+            try:
+                relative = current.relative_to(path)
+            except ValueError:
+                relative = Path()
+            at_root = relative == Path(".")
+            ignored = set()
+            for name in names:
+                candidate = current / name
+                if name in {".git", ".github", "__pycache__"}:
+                    ignored.add(name)
+                    continue
+                if name.startswith("uv-receipt") or name.endswith(
+                    (".pyc", ".log", ".tmp", ".db-shm", ".db-wal")
+                ):
+                    ignored.add(name)
+                    continue
+                if at_root and name in {
+                    "cache",
+                    "config",
+                    "data",
+                    "log",
                     "logs",
-                    "GPT_weights_v*",
-                    "SoVITS_weights_v*",
-                    "model_assets",
-                ]
-            )
+                    "output",
+                    "outputs",
+                    "temp",
+                }:
+                    ignored.add(name)
+                    continue
+                if label == "GPT-SoVITS-run":
+                    if at_root and name in {
+                        "logs",
+                        "model_assets",
+                        "voices",
+                    }:
+                        ignored.add(name)
+                        continue
+                    if relative == Path("GPT_SoVITS") and name.startswith(
+                        ("GPT_weights_v", "SoVITS_weights_v")
+                    ):
+                        ignored.add(name)
+                        continue
+                if label == "napcat-shell" and name in {
+                    "napcat.kill.qq.bat",
+                    "napcat.quick.bat",
+                }:
+                    ignored.add(name)
+            return ignored
+
         shutil.copytree(
             path,
             target,
-            ignore=shutil.ignore_patterns(*ignored),
+            ignore=runtime_ignore,
         )
         for config in target.rglob("pyvenv.cfg"):
             try:
@@ -196,11 +227,103 @@ def _copy_runtime(source: str | None, destination: Path, label: str) -> None:
                 )
             except OSError:
                 pass
+        scripts = target / "Scripts"
+        if scripts.is_dir():
+            for pattern in ("activate*", "deactivate*"):
+                for script in scripts.glob(pattern):
+                    if script.is_file():
+                        script.unlink(missing_ok=True)
         for receipt in target.rglob("uv-receipt.toml"):
             receipt.unlink(missing_ok=True)
     else:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
+
+
+def _sanitize_voice_defaults(stage: Path) -> None:
+    """Keep official base models and remove the developer's persona models."""
+
+    config = (
+        stage
+        / "runtime"
+        / "GPT-SoVITS-run"
+        / "GPT_SoVITS"
+        / "configs"
+        / "tts_infer.yaml"
+    )
+    if not config.is_file():
+        return
+    import yaml
+
+    data = yaml.safe_load(config.read_text(encoding="utf-8-sig")) or {}
+    base = dict(data.get("v2") or {})
+    if not base:
+        raise RuntimeError("GPT-SoVITS v2 base configuration is missing")
+    custom = dict(data.get("custom") or {})
+    for key in (
+        "bert_base_path",
+        "cnhuhbert_base_path",
+        "t2s_weights_path",
+        "vits_weights_path",
+    ):
+        if base.get(key):
+            custom[key] = base[key]
+    custom.update(
+        {
+            "device": "cpu",
+            "is_half": False,
+            "version": "v2",
+        }
+    )
+    data["custom"] = custom
+    config.write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def _installer_batch() -> str:
+    return (
+        "@echo off\n"
+        "setlocal\n"
+        "chcp 936 >nul\n"
+        "cd /d \"%~dp0\"\n"
+        "if exist \"%~dp0runtime\\python-installer.exe\" (\n"
+        "  echo Installing Python 3.12...\n"
+        "  start /wait \"\" \"%~dp0runtime\\python-installer.exe\" "
+        "/quiet InstallAllUsers=0 PrependPath=0 Include_launcher=1 "
+        "Include_test=0\n"
+        ")\n"
+        "set \"PY312=%LOCALAPPDATA%\\Programs\\Python\\Python312\\python.exe\"\n"
+        "if exist \"%PY312%\" goto install_deps\n"
+        "where py >nul 2>&1\n"
+        "if errorlevel 1 goto missing_python\n"
+        "py -3.12 -c \"import sys\" >nul 2>&1\n"
+        "if errorlevel 1 goto missing_python\n"
+        "py -3.12 -m pip install -r "
+        "\"%~dp0requirements-launcher.txt\" --disable-pip-version-check\n"
+        "if errorlevel 1 goto install_failed\n"
+        "call \"%~dp0启动塔菲.bat\"\n"
+        "exit /b 0\n"
+        ":install_deps\n"
+        "\"%PY312%\" -m pip install -r "
+        "\"%~dp0requirements-launcher.txt\" --disable-pip-version-check\n"
+        "if errorlevel 1 goto install_failed\n"
+        "call \"%~dp0启动塔菲.bat\"\n"
+        "exit /b 0\n"
+        ":missing_python\n"
+        "echo Python 3.12 was not found. Please install Python 3.12 and run "
+        "this file again.\n"
+        "start \"\" \"https://www.python.org/downloads/windows/\"\n"
+        "pause\n"
+        "exit /b 1\n"
+        ":install_failed\n"
+        "echo Failed to install launcher dependencies.\n"
+        "echo Check your network connection and run this file again.\n"
+        "pause\n"
+        "exit /b 1\n"
+    )
 
 
 def _sanitize_live_defaults(stage: Path) -> None:
@@ -349,6 +472,7 @@ def build(args) -> Path:
         _copy_runtime(args.astrbot_tool, stage, "astrbot-tool")
         _copy_runtime(args.napcat_shell, stage, "napcat-shell")
         _copy_runtime(args.voice_engine, stage, "GPT-SoVITS-run")
+        _sanitize_voice_defaults(stage)
         if args.python_installer:
             _copy_runtime(args.python_installer, stage, "python-installer.exe")
         offline = bool(
@@ -375,36 +499,18 @@ def build(args) -> Path:
         )
         if offline:
             (stage / "安装说明.txt").write_text(
-                "1. 安装 python-installer.exe（如果包内有）。\n"
-                "2. 运行 安装塔菲鱼.bat 或 启动塔菲.bat。\n"
+                "1. 如果包内有 runtime\\python-installer.exe，运行 "
+                "安装塔菲鱼.bat；否则先安装 Python 3.12。\n"
+                "2. 运行 安装塔菲鱼.bat 完成启动器依赖安装。\n"
                 "3. 按配置向导填写 API Key 和主人 QQ。\n"
                 "4. 使用独立机器人 QQ 扫码登录。\n"
                 "5. 声线权重和参考音频需用户自行导入，公开包不包含角色声线。\n",
                 encoding="utf-8",
             )
             (stage / "安装塔菲鱼.bat").write_text(
-                "@echo off\r\n"
-                "chcp 936 >nul\r\n"
-                "cd /d \"%~dp0\"\r\n"
-                "if exist \"%~dp0runtime\\python-installer.exe\" (\r\n"
-                "  start /wait \"\" \"%~dp0runtime\\python-installer.exe\" "
-                "/quiet InstallAllUsers=0 PrependPath=0 Include_launcher=1 "
-                "Include_test=0\r\n"
-                ")\r\n"
-                "if exist \"%~dp0requirements-launcher.txt\" (\r\n"
-                "  where py >nul 2>&1\r\n"
-                "  if not errorlevel 1 (\r\n"
-                "    py -3.12 -m pip install -r "
-                "\"%~dp0requirements-launcher.txt\" --disable-pip-version-check\r\n"
-                "    if errorlevel 1 py -3 -m pip install -r "
-                "\"%~dp0requirements-launcher.txt\" --disable-pip-version-check\r\n"
-                "  ) else (\r\n"
-                "    python -m pip install -r "
-                "\"%~dp0requirements-launcher.txt\" --disable-pip-version-check\r\n"
-                "  )\r\n"
-                ")\r\n"
-                "call \"%~dp0启动塔菲.bat\"\r\n",
+                _installer_batch(),
                 encoding="gbk",
+                newline="\n",
             )
         prefix = "tafeiyu-offline" if offline else "tafeiyu-source"
         archives = _zip_directory(stage, output, prefix)
