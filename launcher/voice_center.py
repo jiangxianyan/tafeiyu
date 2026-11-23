@@ -17,17 +17,25 @@ from persona_voice import (
     set_binding_enabled,
     voice_status,
 )
+from ui_theme import (
+    BG_DEEP,
+    BORDER,
+    CARD as SURFACE,
+    CYAN,
+    GREEN,
+    INK,
+    MUTED,
+    ORANGE,
+    PINK,
+    RED,
+    SURFACE_SOFT,
+)
+from ui_widgets import RoundedButton
 
-BG = "#fff7fa"
-CARD = "#ffffff"
-CARD_SOFT = "#fbf5f8"
-PINK = "#df6d98"
-BLUE = "#4f91d8"
-INK = "#342a37"
-MUTED = "#7d6e81"
-GREEN = "#2f946e"
-ORANGE = "#c07a2f"
-RED = "#c74d62"
+BG = BG_DEEP
+CARD = SURFACE
+CARD_SOFT = SURFACE_SOFT
+BLUE = CYAN
 
 
 class VoiceImportDialog(tk.Toplevel):
@@ -44,7 +52,7 @@ class VoiceImportDialog(tk.Toplevel):
         self.geometry("720x470")
         self.resizable(False, False)
         self.configure(bg=BG)
-        self.transient(parent)
+        self.transient(parent.winfo_toplevel())
         self.grab_set()
         self.on_saved = on_saved
         self.persona_id = persona_id
@@ -172,7 +180,7 @@ class FeiyuServiceDialog(tk.Toplevel):
         self.geometry("560x310")
         self.resizable(False, False)
         self.configure(bg=BG)
-        self.transient(parent)
+        self.transient(parent.winfo_toplevel())
         self.grab_set()
         self.on_saved = on_saved
         self.persona_id = persona_id
@@ -240,37 +248,42 @@ class FeiyuServiceDialog(tk.Toplevel):
         self.on_saved()
 
 
-class PersonaVoiceCenter(tk.Toplevel):
+class PersonaVoicePage(tk.Frame):
     def __init__(self, parent: tk.Misc) -> None:
-        super().__init__(parent)
-        self.title("塔菲鱼 · 人格与声线")
-        self.geometry("900x670")
-        self.minsize(760, 590)
-        self.configure(bg=BG)
-        self.transient(parent)
+        super().__init__(parent, bg=BG)
         self._build_ui()
         self._refresh()
 
     def _build_ui(self) -> None:
-        header = tk.Frame(self, bg="#f9eaf1", height=82)
-        header.pack(fill="x")
-        header.pack_propagate(False)
+        toolbar = tk.Frame(self, bg=BG)
+        toolbar.pack(fill="x", pady=(0, 12))
+        copy = tk.Frame(toolbar, bg=BG)
+        copy.pack(side="left", fill="x", expand=True)
         tk.Label(
-            header,
-            text="人格与声线",
-            bg="#f9eaf1",
+            copy,
+            text="每个人格使用自己的声线",
+            bg=BG,
             fg=INK,
-            font=("Microsoft YaHei UI", 21, "bold"),
-        ).pack(anchor="w", padx=24, pady=(13, 0))
+            font=("Microsoft YaHei UI", 13, "bold"),
+        ).pack(anchor="w")
         tk.Label(
-            header,
-            text="每个人格只使用自己绑定的声线。切换人格时，未安装的语音会保持关闭。",
-            bg="#f9eaf1",
+            copy,
+            text="切换人格不会串用上一个人格的语音；未安装的声线保持关闭。",
+            bg=BG,
             fg=MUTED,
             font=("Microsoft YaHei UI", 9),
-        ).pack(anchor="w", padx=25)
+        ).pack(anchor="w", pady=(2, 0))
+        RoundedButton(
+            toolbar,
+            text="刷新",
+            kind="secondary",
+            command=self._refresh,
+        ).pack(side="right")
         self.content = tk.Frame(self, bg=BG)
-        self.content.pack(fill="both", expand=True, padx=20, pady=16)
+        self.content.pack(fill="both", expand=True)
+
+    def refresh(self) -> None:
+        self._refresh()
 
     def _refresh(self) -> None:
         for child in self.content.winfo_children():
@@ -298,7 +311,7 @@ class PersonaVoiceCenter(tk.Toplevel):
             self.content,
             bg=CARD,
             highlightthickness=2 if is_active else 1,
-            highlightbackground=PINK if is_active else "#eadde5",
+            highlightbackground=PINK if is_active else BORDER,
             padx=16,
             pady=15,
         )
@@ -442,21 +455,3 @@ class PersonaVoiceCenter(tk.Toplevel):
             messagebox.showerror("语音设置失败", str(error), parent=self)
             return
         self._refresh()
-
-
-def open_persona_voice_center(parent: tk.Misc) -> PersonaVoiceCenter:
-    existing = next(
-        (
-            child
-            for child in parent.winfo_children()
-            if isinstance(child, PersonaVoiceCenter) and child.winfo_exists()
-        ),
-        None,
-    )
-    if existing:
-        existing.lift()
-        existing.focus_force()
-        return existing
-    window = PersonaVoiceCenter(parent)
-    window.focus_force()
-    return window

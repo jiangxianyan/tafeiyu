@@ -47,10 +47,11 @@ entitled to use and must comply with applicable platform rules, personality
 rights, voice rights, and other third-party rights.
 
 The project does not host unauthorized copies and does not grant permission to
-redistribute third-party voice resources. A community group, if one is created,
-is intended for installation discussion and user-assisted discovery of lawful
-sources. Its group number or invitation link will be published on the project
-release page when available.
+redistribute third-party voice resources. The project QQ community group is
+**296334261**. It is intended for installation discussion, feature feedback,
+persona/plugin exchange, and user-assisted discovery of lawful voice-resource
+sources. The group does not host or endorse unauthorized model weights,
+reference audio, character assets, or chat data.
 
 The optional Dafeiyu voice integration only calls a separately deployed
 HTTP service. It does not bundle or copy the upstream
@@ -66,9 +67,9 @@ must follow the upstream project's deployment and licensing terms.
 `ace-taffy-skill`。当前语音权重和参考音频没有明确再分发许可，因此不会
 包含在公开仓库、安装器或 Release 安装包中。
 
-用户可以自行取得并仅使用自己有权使用的声线资源。项目交流群只用于安装
-讨论和合法来源交流，不托管或认可未经授权的副本；具体群号或加群链接以
-项目 Release 页面公布的信息为准。
+用户可以自行取得并仅使用自己有权使用的声线资源。项目 QQ 交流群为
+**296334261**，只用于安装讨论、功能反馈、人格/插件交流和合法来源交流，
+不托管或认可未经授权的模型权重、参考音频、角色素材或聊天数据。
 
 ## Secrets and user data
 
@@ -93,11 +94,6 @@ is licensed under AGPL-3.0. Its original `LICENSE`, metadata and README remain
 inside the plugin directory. Local modifications include image-triggered reply
 controls and compatibility changes. The complete corresponding source is
 distributed in this repository.
-
-The optional 3D memory-graph upgrade path references
-[`3d-force-graph`](https://github.com/vasturiano/3d-force-graph), copyright
-Vasco Asturiano, under the MIT License. The current built-in Tk star map does
-not bundle that library.
 
 ## Meme-wiki adaptation
 

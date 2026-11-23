@@ -29,68 +29,38 @@ from memewiki_core import (  # noqa: E402
     update_database as update_memewiki_database,
 )
 from persona_voice import active_persona_id, persona_catalog  # noqa: E402
+from ui_theme import (  # noqa: E402
+    BG_DEEP,
+    BORDER,
+    CARD as SURFACE,
+    GREEN,
+    INK,
+    MUTED,
+    ORANGE,
+    PINK,
+    SURFACE_ALT,
+    SURFACE_SOFT,
+)
 
-BG = "#fff7fa"
-CARD = "#ffffff"
-PINK = "#df6d98"
-INK = "#342a37"
-MUTED = "#7d6e81"
-GREEN = "#2f946e"
-ORANGE = "#c07a2f"
-RED = "#c74d62"
+BG = BG_DEEP
+CARD = SURFACE
 DOCS = ROOT / "docs" / "PERSONA_PLUGINS.md"
 
 
-class PersonaPluginsCenter(tk.Toplevel):
+class PersonaPluginsPage(tk.Frame):
     def __init__(self, parent: tk.Misc) -> None:
-        super().__init__(parent)
-        self.title("塔菲鱼 · 人格插件")
-        self.geometry("920x700")
-        self.minsize(780, 610)
-        self.configure(bg=BG)
-        self.transient(parent)
-        self.personas = persona_catalog()
-        if not self.personas:
-            raise RuntimeError("人格目录为空，无法管理插件")
-        self.persona_labels = {
-            f"{persona.get('display_name', persona['id'])}"
-            f"{'（当前）' if persona['id'] == active_persona_id() else ''}": str(
-                persona["id"]
-            )
-            for persona in self.personas
-        }
-        initial = next(
-            label
-            for label, persona_id in self.persona_labels.items()
-            if persona_id == active_persona_id()
-        )
-        self.selected_label = tk.StringVar(value=initial)
+        super().__init__(parent, bg=BG)
+        self.personas: list[dict] = []
+        self.persona_labels: dict[str, str] = {}
+        self.selected_label = tk.StringVar()
         self.memewiki_updates: queue.Queue[tuple[bool, object]] = queue.Queue()
         self.memewiki_updating = False
         self._build_ui()
-        self._refresh()
+        self.refresh()
 
     def _build_ui(self) -> None:
-        header = tk.Frame(self, bg="#f9eaf1", height=88)
-        header.pack(fill="x")
-        header.pack_propagate(False)
-        tk.Label(
-            header,
-            text="人格插件",
-            bg="#f9eaf1",
-            fg=INK,
-            font=("Microsoft YaHei UI", 21, "bold"),
-        ).pack(anchor="w", padx=24, pady=(13, 0))
-        tk.Label(
-            header,
-            text="给指定人格安装文本扩展。只读取提示词，不执行脚本。",
-            bg="#f9eaf1",
-            fg=MUTED,
-            font=("Microsoft YaHei UI", 9),
-        ).pack(anchor="w", padx=25)
-
         toolbar = tk.Frame(self, bg=BG)
-        toolbar.pack(fill="x", padx=20, pady=(14, 8))
+        toolbar.pack(fill="x", pady=(0, 8))
         tk.Label(
             toolbar,
             text="安装给",
@@ -98,15 +68,20 @@ class PersonaPluginsCenter(tk.Toplevel):
             fg=INK,
             font=("Microsoft YaHei UI", 10, "bold"),
         ).pack(side="left")
-        selector = ttk.Combobox(
+        self.selector = tk.Menubutton(
             toolbar,
             textvariable=self.selected_label,
-            values=list(self.persona_labels),
-            state="readonly",
-            width=20,
+            bg=SURFACE_ALT,
+            fg=INK,
+            activebackground=BORDER,
+            activeforeground=INK,
+            relief="flat",
+            padx=12,
+            pady=7,
+            cursor="hand2",
+            font=("Microsoft YaHei UI", 9),
         )
-        selector.pack(side="left", padx=(8, 0))
-        selector.bind("<<ComboboxSelected>>", lambda _event: self._refresh())
+        self.selector.pack(side="left", padx=(8, 0))
         ttk.Button(
             toolbar,
             text="安装插件包",
@@ -133,18 +108,18 @@ class PersonaPluginsCenter(tk.Toplevel):
                 "插件启用状态按人格独立保存。插件不能携带 Python、可执行文件、"
                 "快捷方式或符号链接；安装前会校验包结构。"
             ),
-            bg="#fff1f6",
-            fg="#8c596d",
+            bg=SURFACE_SOFT,
+            fg=MUTED,
             anchor="w",
             justify="left",
             padx=12,
             pady=8,
             font=("Microsoft YaHei UI", 9),
         )
-        note.pack(fill="x", padx=20, pady=(0, 10))
+        note.pack(fill="x", pady=(0, 10))
 
         host = tk.Frame(self, bg=BG)
-        host.pack(fill="both", expand=True, padx=20, pady=(0, 16))
+        host.pack(fill="both", expand=True)
         self.canvas = tk.Canvas(host, bg=BG, highlightthickness=0)
         scrollbar = ttk.Scrollbar(
             host,
@@ -173,6 +148,65 @@ class PersonaPluginsCenter(tk.Toplevel):
                 width=event.width,
             ),
         )
+
+    def refresh(self) -> None:
+        previous_id = (
+            self.persona_labels.get(self.selected_label.get(), "")
+            if self.persona_labels
+            else ""
+        )
+        active = active_persona_id()
+        self.personas = persona_catalog()
+        if not self.personas:
+            self.persona_labels = {}
+            self.selected_label.set("")
+            self.selector.configure(
+                menu=tk.Menu(
+                    self.selector,
+                    tearoff=False,
+                    bg=SURFACE_ALT,
+                    fg=INK,
+                )
+            )
+            for child in self.cards.winfo_children():
+                child.destroy()
+            self.count_label.configure(text="人格目录为空")
+            return
+        self.persona_labels = {
+            f"{persona.get('display_name', persona['id'])}"
+            f"{'（当前）' if persona['id'] == active else ''}": str(
+                persona["id"]
+            )
+            for persona in self.personas
+        }
+        labels = list(self.persona_labels)
+        target_id = previous_id or str(active)
+        selected = next(
+            (
+                label
+                for label, persona_id in self.persona_labels.items()
+                if persona_id == target_id
+            ),
+            labels[0],
+        )
+        self.selected_label.set(selected)
+        menu = tk.Menu(
+            self.selector,
+            tearoff=False,
+            bg=SURFACE_ALT,
+            fg=INK,
+            activebackground=PINK,
+            activeforeground=BG_DEEP,
+        )
+        for label in labels:
+            menu.add_radiobutton(
+                label=label,
+                value=label,
+                variable=self.selected_label,
+                command=self._refresh,
+            )
+        self.selector.configure(menu=menu)
+        self._refresh()
 
     def _persona_id(self) -> str:
         return self.persona_labels[self.selected_label.get()]
@@ -208,7 +242,7 @@ class PersonaPluginsCenter(tk.Toplevel):
                 self.cards,
                 bg=CARD,
                 highlightthickness=1,
-                highlightbackground="#eadde5",
+                highlightbackground=BORDER,
                 padx=24,
                 pady=30,
             )
@@ -240,19 +274,19 @@ class PersonaPluginsCenter(tk.Toplevel):
         stats = get_memewiki_stats()
         card = tk.Frame(
             self.cards,
-            bg="#fffafc",
+            bg=SURFACE_SOFT,
             highlightthickness=2,
-            highlightbackground="#efc6d6",
+            highlightbackground=PINK,
             padx=16,
             pady=14,
         )
         card.pack(fill="x", pady=(4, 7))
-        top = tk.Frame(card, bg="#fffafc")
+        top = tk.Frame(card, bg=SURFACE_SOFT)
         top.pack(fill="x")
         tk.Label(
             top,
             text="梗百科（内置）",
-            bg="#fffafc",
+            bg=SURFACE_SOFT,
             fg=INK,
             font=("Microsoft YaHei UI", 13, "bold"),
         ).pack(side="left")
@@ -264,14 +298,14 @@ class PersonaPluginsCenter(tk.Toplevel):
         tk.Label(
             top,
             text=version,
-            bg="#fffafc",
+            bg=SURFACE_SOFT,
             fg=MUTED,
             font=("Microsoft YaHei UI", 9),
         ).pack(side="left")
         tk.Label(
             top,
             text="已启用" if enabled else "未启用",
-            bg="#fffafc",
+            bg=SURFACE_SOFT,
             fg=GREEN if enabled and stats["available"] else ORANGE,
             font=("Microsoft YaHei UI", 9, "bold"),
         ).pack(side="right")
@@ -287,14 +321,14 @@ class PersonaPluginsCenter(tk.Toplevel):
                 "自动识别“这是什么梗”或裸词查询，命中时只向当前人格注入一条词条。"
                 f"来源：{description}"
             ),
-            bg="#fffafc",
+            bg=SURFACE_SOFT,
             fg=MUTED,
             anchor="w",
             justify="left",
             wraplength=800,
             font=("Microsoft YaHei UI", 9),
         ).pack(fill="x", pady=(5, 8))
-        actions = tk.Frame(card, bg="#fffafc")
+        actions = tk.Frame(card, bg=SURFACE_SOFT)
         actions.pack(fill="x")
         ttk.Button(
             actions,
@@ -315,7 +349,7 @@ class PersonaPluginsCenter(tk.Toplevel):
         tk.Label(
             actions,
             text="内置插件不可卸载，可对每个人格单独关闭",
-            bg="#fffafc",
+            bg=SURFACE_SOFT,
             fg=MUTED,
             font=("Microsoft YaHei UI", 8),
         ).pack(side="right")
@@ -371,7 +405,7 @@ class PersonaPluginsCenter(tk.Toplevel):
             self.cards,
             bg=CARD,
             highlightthickness=1,
-            highlightbackground="#eadde5",
+            highlightbackground=BORDER,
             padx=16,
             pady=14,
         )
@@ -568,21 +602,3 @@ class PersonaPluginsCenter(tk.Toplevel):
         import webbrowser
 
         webbrowser.open(url)
-
-
-def open_persona_plugins_center(parent: tk.Misc) -> PersonaPluginsCenter:
-    existing = next(
-        (
-            child
-            for child in parent.winfo_children()
-            if isinstance(child, PersonaPluginsCenter) and child.winfo_exists()
-        ),
-        None,
-    )
-    if existing:
-        existing.lift()
-        existing.focus_force()
-        return existing
-    window = PersonaPluginsCenter(parent)
-    window.focus_force()
-    return window

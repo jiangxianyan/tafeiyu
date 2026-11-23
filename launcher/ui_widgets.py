@@ -340,6 +340,12 @@ class RoundedButton(tk.Canvas):
             palette["fill"] = palette["hover"]
         return palette
 
+    def set_kind(self, kind: str) -> None:
+        if kind not in self.PALETTES or kind == self._kind:
+            return
+        self._kind = kind
+        self._draw()
+
     def _draw(self) -> None:
         self.delete("all")
         palette = self._palette()

@@ -29,6 +29,7 @@ from launcher_core import (
     restart_after_setup,
     stop_all,
 )
+from memory_center import MemoryCenterPage
 from persona_voice import (
     active_persona_id,
     persona_catalog,
@@ -36,7 +37,7 @@ from persona_voice import (
     voice_status,
 )
 from persona_manager_core import add_persona
-from persona_plugins_center import open_persona_plugins_center
+from persona_plugins_center import PersonaPluginsPage
 from persona_visuals_center import open_persona_visuals_center
 from setup_core import setup_required
 from setup_wizard import SetupWizard
@@ -72,8 +73,7 @@ from ui_widgets import (
     apply_windows_window_icon,
     set_windows_app_user_model_id,
 )
-from voice_center import open_persona_voice_center
-from yaoguang_memory import open_memory_map
+from voice_center import PersonaVoicePage
 
 DARK = INK
 
@@ -190,6 +190,45 @@ class Launcher(tk.Tk):
             foreground=INK,
             arrowcolor=MUTED,
             bordercolor=BORDER,
+            readonlybackground=SURFACE_ALT,
+            selectbackground=SURFACE_ALT,
+            selectforeground=INK,
+        )
+        style.map(
+            "TCombobox",
+            fieldbackground=[
+                ("readonly", SURFACE_ALT),
+                ("active", SURFACE_ALT),
+            ],
+            foreground=[
+                ("readonly", INK),
+                ("active", INK),
+            ],
+            selectbackground=[("readonly", SURFACE_ALT)],
+            selectforeground=[("readonly", INK)],
+        )
+        style.configure(
+            "Dark.TCombobox",
+            fieldbackground=SURFACE_ALT,
+            background=SURFACE_ALT,
+            foreground=INK,
+            arrowcolor=MUTED,
+            bordercolor=BORDER,
+            lightcolor=BORDER,
+            darkcolor=BORDER,
+        )
+        style.map(
+            "Dark.TCombobox",
+            fieldbackground=[
+                ("readonly", SURFACE_ALT),
+                ("active", SURFACE_ALT),
+            ],
+            foreground=[
+                ("readonly", INK),
+                ("active", INK),
+            ],
+            selectbackground=[("readonly", SURFACE_ALT)],
+            selectforeground=[("readonly", INK)],
         )
 
         shell = tk.Frame(self, bg=BG_DEEP)
@@ -237,7 +276,7 @@ class Launcher(tk.Tk):
             ("personas", "人格切换"),
             ("voice", "声音中心"),
             ("stickers", "表情包库"),
-            ("memory", "记忆星图"),
+            ("memory", "记忆"),
             ("plugins", "人格插件"),
             ("settings", "设置与诊断"),
         ]
@@ -320,18 +359,8 @@ class Launcher(tk.Tk):
             "personas": self._build_personas_page(),
             "voice": self._build_voice_page(),
             "stickers": self._build_stickers_page(),
-            "memory": self._build_link_page(
-                "记忆星图",
-                "以人格为单位查看习惯、关系、话题与冷热记忆。",
-                "打开瑶光记忆星图",
-                lambda: open_memory_map(self),
-            ),
-            "plugins": self._build_link_page(
-                "人格插件",
-                "安装文本扩展、启用梗百科，并按人格独立管理。",
-                "打开人格插件中心",
-                lambda: open_persona_plugins_center(self),
-            ),
+            "memory": self._build_memory_page(),
+            "plugins": self._build_plugins_page(),
             "settings": self._build_settings_page(),
         }
         self.page_host.grid_rowconfigure(0, weight=1)
@@ -488,7 +517,7 @@ class Launcher(tk.Tk):
             "personas": ("人格切换", "当前角色的语音、形象和插件互不混用"),
             "voice": ("声音中心", "为每个人格绑定独立声线"),
             "stickers": ("表情包库", "查看、导入并修改表情标签与适用场景"),
-            "memory": ("记忆星图", "查看当前人格的长期记忆与说话习惯"),
+            "memory": ("记忆", "查看当前人格的偏好、关系与近期对话线索"),
             "plugins": ("人格插件", "扩展人格能力并管理梗百科"),
             "settings": ("设置与诊断", "重新配置、查看日志或管理运行状态"),
         }
@@ -500,9 +529,13 @@ class Launcher(tk.Tk):
         if key == "personas":
             self._refresh_personas_page()
         elif key == "voice":
-            self._refresh_voice_page()
+            self.voice_page.refresh()
         elif key == "stickers":
             self.sticker_page.refresh()
+        elif key == "memory":
+            self.memory_page.refresh()
+        elif key == "plugins":
+            self.plugins_page.refresh()
 
     def _update_header_text(self) -> None:
         canvas = getattr(self, "header_canvas", None)
@@ -742,74 +775,20 @@ class Launcher(tk.Tk):
         )
 
     def _build_voice_page(self) -> tk.Frame:
-        page = tk.Frame(self.page_host, bg=CARD)
-        self.voice_summary = tk.Label(
-            page,
-            text="",
-            bg=CARD,
-            fg=INK,
-            justify="left",
-            anchor="nw",
-            padx=22,
-            pady=18,
-            font=("Microsoft YaHei UI", 11),
-        )
-        self.voice_summary.pack(fill="x")
-        RoundedButton(
-            page,
-            text="打开人格与声线中心",
-            kind="primary",
-            command=lambda: open_persona_voice_center(self),
-        ).pack(anchor="w", padx=22, pady=(0, 18))
-        return page
-
-    def _refresh_voice_page(self) -> None:
-        lines = []
-        for persona in persona_catalog():
-            persona_id = str(persona["id"])
-            name = persona.get("display_name") or persona_id
-            status = voice_status(persona_id)
-            lines.append(
-                f"{name}：{status.get('detail')}\n"
-                f"  绑定声线：{(persona.get('voice_binding') or {}).get('display_name', '未配置')}"
-            )
-        self.voice_summary.configure(text="\n\n".join(lines))
+        self.voice_page = PersonaVoicePage(self.page_host)
+        return self.voice_page
 
     def _build_stickers_page(self) -> tk.Frame:
         self.sticker_page = StickerLibraryPage(self.page_host)
         return self.sticker_page
 
-    def _build_link_page(
-        self,
-        title: str,
-        description: str,
-        button_text: str,
-        command,
-    ) -> tk.Frame:
-        page = tk.Frame(self.page_host, bg=CARD)
-        tk.Label(
-            page,
-            text=title,
-            bg=CARD,
-            fg=INK,
-            font=("Microsoft YaHei UI", 17, "bold"),
-        ).pack(anchor="w", padx=24, pady=(24, 5))
-        tk.Label(
-            page,
-            text=description,
-            bg=CARD,
-            fg=MUTED,
-            wraplength=700,
-            justify="left",
-            font=("Microsoft YaHei UI", 10),
-        ).pack(anchor="w", padx=24)
-        RoundedButton(
-            page,
-            text=button_text,
-            kind="primary",
-            command=command,
-        ).pack(anchor="w", padx=24, pady=18)
-        return page
+    def _build_memory_page(self) -> tk.Frame:
+        self.memory_page = MemoryCenterPage(self.page_host)
+        return self.memory_page
+
+    def _build_plugins_page(self) -> tk.Frame:
+        self.plugins_page = PersonaPluginsPage(self.page_host)
+        return self.plugins_page
 
     def _build_settings_page(self) -> tk.Frame:
         page = tk.Frame(self.page_host, bg=CARD)
